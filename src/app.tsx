@@ -3,12 +3,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /** Gallery page size: each "Load more" accumulates this many new items. */
 const PAGE_SIZE = 12;
+/**
+ * Files scanned per list request (the server clamps to its own max). Much larger than
+ * PAGE_SIZE because the server post-filters by contentTypePrefixes over an unfiltered
+ * scan: sparse-media trees would otherwise need one request per 12 files and trip the
+ * per-route rate limit before a single gallery page fills.
+ */
+const LIST_SCAN_LIMIT = 100;
 /** Signed URLs are re-requested when they are this close to `expiresAt`. */
 const URL_EXPIRY_MARGIN_MS = 60_000;
 /** Thumbnail download-url requests in flight at once. */
 const MAX_CONCURRENT_URL_REQUESTS = 4;
-/** Back-off delays after a 429 from `/api/v1/files/download-url`, one per retry. */
-const URL_RETRY_DELAYS_MS = [3_000, 6_000];
+/** Back-off delays after a 429, one per retry. */
+const RETRY_429_DELAYS_MS = [3_000, 6_000];
 
 type FilesListItem = {
 	path: string;
@@ -57,6 +64,28 @@ function get_error_message(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
+async function request_list_page(client: BonoboUiFrontendClient, cursor: string | null): Promise<FilesListResponse> {
+	for (let attempt = 0; ; attempt += 1) {
+		try {
+			return (await client.fetchJson("/api/v1/files/list", {
+				body: {
+					recursive: true,
+					limit: LIST_SCAN_LIMIT,
+					cursor,
+					contentTypePrefixes: ["image/", "video/"],
+				},
+			})) as FilesListResponse;
+		} catch (error) {
+			const delay_ms = RETRY_429_DELAYS_MS[attempt];
+			if (get_error_status(error) === 429 && delay_ms !== undefined) {
+				await sleep(delay_ms);
+				continue;
+			}
+			throw error;
+		}
+	}
+}
+
 type MediaUrlManager = {
 	get_url(nodeId: string): Promise<string>;
 	get_fresh_url(nodeId: string): Promise<string>;
@@ -95,7 +124,7 @@ function create_media_url_manager(client: BonoboUiFrontendClient): MediaUrlManag
 				cache.set(nodeId, { url: response.url, expiresAt: response.expiresAt });
 				return response;
 			} catch (error) {
-				const delay_ms = URL_RETRY_DELAYS_MS[attempt];
+				const delay_ms = RETRY_429_DELAYS_MS[attempt];
 				if (get_error_status(error) === 429 && delay_ms !== undefined) {
 					await sleep(delay_ms);
 					continue;
@@ -173,14 +202,7 @@ export function App(props: { client: BonoboUiFrontendClient }) {
 		const fresh: FilesListItem[] = [];
 		try {
 			while (fresh.length < PAGE_SIZE && !paging.isDone) {
-				const page = (await props.client.fetchJson("/api/v1/files/list", {
-					body: {
-						recursive: true,
-						limit: PAGE_SIZE,
-						cursor: paging.cursor,
-						contentTypePrefixes: ["image/", "video/"],
-					},
-				})) as FilesListResponse;
+				const page = await request_list_page(props.client, paging.cursor);
 				fresh.push(...page.items);
 				paging.cursor = page.cursor;
 				paging.isDone = page.isDone;
@@ -190,7 +212,19 @@ export function App(props: { client: BonoboUiFrontendClient }) {
 		} finally {
 			// Keep partial progress: the cursor already advanced past these items.
 			if (fresh.length > 0) {
-				setItems((prev) => [...prev, ...fresh]);
+				// Dedup by nodeId: cursor pagination is keyset over treePath, so a file
+				// renamed/moved past the cursor mid-pagination can come back twice.
+				setItems((prev) => {
+					const seen = new Set(prev.map((item) => item.nodeId));
+					const merged = [...prev];
+					for (const item of fresh) {
+						if (!seen.has(item.nodeId)) {
+							seen.add(item.nodeId);
+							merged.push(item);
+						}
+					}
+					return merged.length === prev.length ? prev : merged;
+				});
 			}
 			setIsDone(paging.isDone);
 			paging.loading = false;
