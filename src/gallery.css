@@ -1,0 +1,272 @@
+/* Gallery plugin — dark Google-Photos-style theme, no external assets. */
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	background: #0b0b0e;
+	color: #ececef;
+	font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	font-size: 14px;
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+}
+
+#root {
+	min-height: 100vh;
+}
+
+.boot-screen {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 100vh;
+	padding: 24px;
+	text-align: center;
+	color: #9a9aa3;
+}
+
+.boot-screen.is-error {
+	color: #ff8f8f;
+}
+
+.button {
+	appearance: none;
+	border: 1px solid #2c2c33;
+	border-radius: 8px;
+	background: #1a1a1f;
+	color: #ececef;
+	padding: 8px 20px;
+	font: inherit;
+	font-size: 13px;
+	cursor: pointer;
+	transition:
+		background 120ms ease,
+		border-color 120ms ease;
+}
+
+.button:hover {
+	background: #232329;
+	border-color: #3a3a42;
+}
+
+.gallery {
+	max-width: 1280px;
+	margin: 0 auto;
+	padding: 20px 24px 40px;
+}
+
+.gallery-header h1 {
+	margin: 0 0 16px;
+	font-size: 18px;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+}
+
+.gallery-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+	gap: 8px;
+}
+
+.tile {
+	position: relative;
+	display: block;
+	aspect-ratio: 1;
+	overflow: hidden;
+	border-radius: 10px;
+	background: #16161a;
+	color: inherit;
+	text-decoration: none;
+	transition:
+		transform 120ms ease,
+		box-shadow 120ms ease;
+}
+
+.tile:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+}
+
+.tile-media {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.tile-placeholder {
+	position: absolute;
+	inset: 0;
+	background: #1b1b20;
+	animation: tile-pulse 1.4s ease-in-out infinite;
+}
+
+.tile-placeholder.is-failed {
+	background: #221418;
+	animation: none;
+}
+
+@keyframes tile-pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.55;
+	}
+}
+
+.tile-play {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 40px;
+	height: 40px;
+	padding-left: 3px; /* optical centering of the glyph */
+	border-radius: 50%;
+	background: rgba(0, 0, 0, 0.55);
+	color: #fff;
+	font-size: 15px;
+	pointer-events: none;
+}
+
+.tile-name {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	padding: 18px 10px 8px;
+	background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0));
+	font-size: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	opacity: 0;
+	transition: opacity 120ms ease;
+	pointer-events: none;
+}
+
+.tile:hover .tile-name {
+	opacity: 1;
+}
+
+.gallery-status {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	padding: 32px 0;
+	text-align: center;
+	color: #9a9aa3;
+}
+
+.gallery-status.is-error {
+	color: #ff8f8f;
+}
+
+.gallery-more {
+	display: flex;
+	justify-content: center;
+	margin-top: 20px;
+}
+
+.gallery-count {
+	margin-top: 12px;
+	text-align: center;
+	font-size: 12px;
+	color: #8b8b94;
+}
+
+.viewer {
+	position: fixed;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	background: #050507;
+}
+
+.viewer-topbar {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	min-height: 52px;
+	padding: 10px 16px;
+	background: rgba(11, 11, 14, 0.9);
+	border-bottom: 1px solid #1d1d22;
+}
+
+.viewer-back {
+	flex-shrink: 0;
+	border: 1px solid #2c2c33;
+	border-radius: 8px;
+	background: #1a1a1f;
+	color: #ececef;
+	padding: 6px 12px;
+	font-size: 13px;
+	text-decoration: none;
+	white-space: nowrap;
+	transition: background 120ms ease;
+}
+
+.viewer-back:hover {
+	background: #232329;
+}
+
+.viewer-titles {
+	min-width: 0;
+}
+
+.viewer-name {
+	font-size: 14px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.viewer-meta {
+	font-size: 12px;
+	color: #8b8b94;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.viewer-stage {
+	display: flex;
+	flex: 1;
+	min-height: 0;
+	align-items: center;
+	justify-content: center;
+	padding: 16px;
+}
+
+.viewer-stage img,
+.viewer-stage video {
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+	border-radius: 4px;
+}
+
+.viewer-status {
+	color: #9a9aa3;
+}
+
+.viewer-status.is-error {
+	color: #ff8f8f;
+	padding: 0 24px;
+	text-align: center;
+}
