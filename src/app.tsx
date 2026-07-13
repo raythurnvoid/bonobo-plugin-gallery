@@ -1,42 +1,8 @@
 import type { BonoboUiFrontendClient } from "bonobo-plugin-sdk/frontend";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-/** Gallery page size: each "Load more" accumulates this many new items. */
-const PAGE_SIZE = 12;
-/**
- * Files scanned per list request (the server clamps to its own max). Much larger than
- * PAGE_SIZE because the server post-filters by contentTypePrefixes over an unfiltered
- * scan: sparse-media trees would otherwise need one request per 12 files and trip the
- * per-route rate limit before a single gallery page fills.
- */
-const LIST_SCAN_LIMIT = 100;
-/** Signed URLs are re-requested when they are this close to `expiresAt`. */
-const URL_EXPIRY_MARGIN_MS = 60_000;
-/** Thumbnail download-url requests in flight at once. */
-const MAX_CONCURRENT_URL_REQUESTS = 4;
-/** Back-off delays after a 429, one per retry. */
-const RETRY_429_DELAYS_MS = [3_000, 6_000];
-
-type FilesListItem = {
-	path: string;
-	name: string;
-	kind: "file" | "folder";
-	nodeId: string;
-	contentType: string | null;
-	updatedAt: number;
-};
-
-type FilesListResponse = {
-	items: FilesListItem[];
-	cursor: string | null;
-	isDone: boolean;
-};
-
-type FilesDownloadUrlResponse = {
-	fileNodeId: string;
-	url: string;
-	expiresAt: number;
-};
+import { create_list_scan, type FilesListItem } from "./list-scan";
+import { create_media_url_manager, type MediaUrl, type MediaUrlManager } from "./media-urls";
+import { get_error_message } from "./retry";
 
 type Route = { view: "grid" } | { view: "file"; nodeId: string };
 
@@ -48,138 +14,16 @@ function parse_route(hash: string): Route {
 	return { view: "grid" };
 }
 
-function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function get_error_status(error: unknown): number | undefined {
-	// fetchJson rejects with an Error carrying `status` on non-ok responses.
-	if (error instanceof Error && "status" in error && typeof error.status === "number") {
-		return error.status;
-	}
-	return undefined;
-}
-
-function get_error_message(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
-
-async function request_list_page(client: BonoboUiFrontendClient, cursor: string | null): Promise<FilesListResponse> {
-	for (let attempt = 0; ; attempt += 1) {
-		try {
-			return (await client.fetchJson("/api/v1/files/list", {
-				body: {
-					recursive: true,
-					limit: LIST_SCAN_LIMIT,
-					cursor,
-					contentTypePrefixes: ["image/", "video/"],
-				},
-			})) as FilesListResponse;
-		} catch (error) {
-			const delay_ms = RETRY_429_DELAYS_MS[attempt];
-			if (get_error_status(error) === 429 && delay_ms !== undefined) {
-				await sleep(delay_ms);
-				continue;
-			}
-			throw error;
-		}
-	}
-}
-
-type MediaUrlManager = {
-	get_url(nodeId: string): Promise<string>;
-	get_fresh_url(nodeId: string): Promise<string>;
-};
-
-function create_media_url_manager(client: BonoboUiFrontendClient): MediaUrlManager {
-	const cache = new Map<string, { url: string; expiresAt: number }>();
-	const pending = new Map<string, Promise<string>>();
-	const waiters: Array<() => void> = [];
-	let active_requests = 0;
-
-	function acquire_slot(): Promise<void> {
-		if (active_requests < MAX_CONCURRENT_URL_REQUESTS) {
-			active_requests += 1;
-			return Promise.resolve();
-		}
-		return new Promise((resolve) => waiters.push(resolve));
-	}
-
-	function release_slot(): void {
-		const next = waiters.shift();
-		if (next) {
-			// The slot transfers to the waiter; active_requests stays constant.
-			next();
-		} else {
-			active_requests -= 1;
-		}
-	}
-
-	async function request_download_url(nodeId: string): Promise<{ url: string; expiresAt: number }> {
-		for (let attempt = 0; ; attempt += 1) {
-			try {
-				const response = (await client.fetchJson("/api/v1/files/download-url", {
-					body: { fileNodeId: nodeId },
-				})) as FilesDownloadUrlResponse;
-				cache.set(nodeId, { url: response.url, expiresAt: response.expiresAt });
-				return response;
-			} catch (error) {
-				const delay_ms = RETRY_429_DELAYS_MS[attempt];
-				if (get_error_status(error) === 429 && delay_ms !== undefined) {
-					await sleep(delay_ms);
-					continue;
-				}
-				throw error;
-			}
-		}
-	}
-
-	return {
-		// Thumbnails: cached per node, deduped, limited concurrency.
-		get_url(nodeId) {
-			const cached = cache.get(nodeId);
-			if (cached && Date.now() < cached.expiresAt - URL_EXPIRY_MARGIN_MS) {
-				return Promise.resolve(cached.url);
-			}
-			const in_flight = pending.get(nodeId);
-			if (in_flight) {
-				return in_flight;
-			}
-			const request = (async () => {
-				await acquire_slot();
-				try {
-					const media = await request_download_url(nodeId);
-					return media.url;
-				} finally {
-					release_slot();
-					pending.delete(nodeId);
-				}
-			})();
-			pending.set(nodeId, request);
-			return request;
-		},
-		// Detail view: always mint a fresh URL so playback never starts on a near-expiry link.
-		async get_fresh_url(nodeId) {
-			const media = await request_download_url(nodeId);
-			return media.url;
-		},
-	};
-}
-
 export function App(props: { client: BonoboUiFrontendClient }) {
 	const media = useMemo(() => create_media_url_manager(props.client), [props.client]);
+	const scan = useMemo(() => create_list_scan(props.client), [props.client]);
 	const [route, setRoute] = useState<Route>(() => parse_route(window.location.hash));
 	const [items, setItems] = useState<FilesListItem[]>([]);
-	const [isDone, setIsDone] = useState(false);
+	const [hasMore, setHasMore] = useState(true);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	// Pagination state the async loader reads and writes; a ref keeps it exact
-	// across renders and makes the loader single-flight.
-	const pagingRef = useRef<{ cursor: string | null; isDone: boolean; loading: boolean }>({
-		cursor: null,
-		isDone: false,
-		loading: false,
-	});
+	// Single-flight guard for the async loader; a ref keeps it exact across renders.
+	const loadingRef = useRef(false);
 
 	useEffect(() => {
 		const handle_hash_change = () => setRoute(parse_route(window.location.hash));
@@ -188,49 +32,21 @@ export function App(props: { client: BonoboUiFrontendClient }) {
 	}, []);
 
 	const load_more = useCallback(async () => {
-		const paging = pagingRef.current;
-		if (paging.loading || paging.isDone) {
+		if (loadingRef.current) {
 			return;
 		}
-		paging.loading = true;
+		loadingRef.current = true;
 		setLoading(true);
 		setError(null);
-		// The server post-filters each page by contentTypePrefixes, so a page may
-		// come back short or even empty while isDone is still false — keep
-		// following the cursor until a full gallery page accumulates or the
-		// listing is done.
-		const fresh: FilesListItem[] = [];
-		try {
-			while (fresh.length < PAGE_SIZE && !paging.isDone) {
-				const page = await request_list_page(props.client, paging.cursor);
-				fresh.push(...page.items);
-				paging.cursor = page.cursor;
-				paging.isDone = page.isDone;
-			}
-		} catch (error) {
-			setError(get_error_message(error));
-		} finally {
-			// Keep partial progress: the cursor already advanced past these items.
-			if (fresh.length > 0) {
-				// Dedup by nodeId: cursor pagination is keyset over treePath, so a file
-				// renamed/moved past the cursor mid-pagination can come back twice.
-				setItems((prev) => {
-					const seen = new Set(prev.map((item) => item.nodeId));
-					const merged = [...prev];
-					for (const item of fresh) {
-						if (!seen.has(item.nodeId)) {
-							seen.add(item.nodeId);
-							merged.push(item);
-						}
-					}
-					return merged.length === prev.length ? prev : merged;
-				});
-			}
-			setIsDone(paging.isDone);
-			paging.loading = false;
-			setLoading(false);
+		const result = await scan.load_next();
+		if (result.items.length > 0) {
+			setItems((prev) => [...prev, ...result.items]);
 		}
-	}, [props.client]);
+		setError(result.errorMessage);
+		setHasMore(scan.has_more());
+		loadingRef.current = false;
+		setLoading(false);
+	}, [scan]);
 
 	useEffect(() => {
 		void load_more();
@@ -253,19 +69,23 @@ export function App(props: { client: BonoboUiFrontendClient }) {
 					))}
 				</div>
 			) : null}
-			{loading ? <div className="gallery-status">Loading…</div> : null}
+			{loading ? (
+				<div className="gallery-status" role="status" aria-live="polite">
+					Loading…
+				</div>
+			) : null}
 			{error !== null ? (
-				<div className="gallery-status is-error">
+				<div className="gallery-status is-error" role="alert">
 					<span>{error}</span>
 					<button className="button" onClick={() => void load_more()}>
 						Retry
 					</button>
 				</div>
 			) : null}
-			{!loading && error === null && isDone && items.length === 0 ? (
+			{!loading && error === null && !hasMore && items.length === 0 ? (
 				<div className="gallery-status">No images or videos yet.</div>
 			) : null}
-			{!isDone && !loading && error === null ? (
+			{hasMore && !loading && error === null ? (
 				<div className="gallery-more">
 					<button className="button" onClick={() => void load_more()}>
 						Load more
@@ -281,74 +101,154 @@ export function App(props: { client: BonoboUiFrontendClient }) {
 	);
 }
 
-function GalleryTile(props: { item: FilesListItem; media: MediaUrlManager }) {
-	const [url, setUrl] = useState<string | null>(null);
-	const [failed, setFailed] = useState(false);
+/**
+ * A component's signed media URL with failure recovery: one automatic renewal per failure
+ * episode (`notify_load_error`), reset only by a successful load (`notify_load_success`),
+ * then a manual `retry`. Initial requests and renewals both go through the manager's shared
+ * pool and per-node dedup.
+ */
+function use_media_url(media: MediaUrlManager, nodeId: string, mode: "cached" | "fresh") {
+	const [mediaUrl, setMediaUrl] = useState<MediaUrl | null>(null);
+	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const autoRenewSpentRef = useRef(false);
+	// Bumped when the node changes so a stale async result cannot land on the new node.
+	const generationRef = useRef(0);
+
+	const request_url = useCallback(
+		(fresh: boolean) => {
+			const generation = generationRef.current;
+			const promise = fresh || mode === "fresh" ? media.get_fresh_url(nodeId) : media.get_url(nodeId);
+			promise.then(
+				(media_url) => {
+					if (generationRef.current === generation) {
+						setMediaUrl(media_url);
+						setErrorMessage(null);
+					}
+				},
+				(error: unknown) => {
+					if (generationRef.current === generation) {
+						setMediaUrl(null);
+						setErrorMessage(get_error_message(error));
+					}
+				},
+			);
+		},
+		[media, nodeId, mode],
+	);
 
 	useEffect(() => {
-		let cancelled = false;
-		props.media.get_url(props.item.nodeId).then(
-			(url) => {
-				if (!cancelled) {
-					setUrl(url);
-				}
-			},
-			() => {
-				if (!cancelled) {
-					setFailed(true);
-				}
-			},
-		);
+		autoRenewSpentRef.current = false;
+		setMediaUrl(null);
+		setErrorMessage(null);
+		request_url(false);
 		return () => {
-			cancelled = true;
+			generationRef.current += 1;
 		};
-	}, [props.item.nodeId, props.media]);
+	}, [request_url]);
+
+	const notify_load_success = useCallback(() => {
+		autoRenewSpentRef.current = false;
+	}, []);
+
+	const notify_load_error = useCallback(() => {
+		if (autoRenewSpentRef.current) {
+			// The renewed URL failed to load too — stop and offer manual Retry.
+			setMediaUrl(null);
+			setErrorMessage("Failed to load media");
+			return;
+		}
+		autoRenewSpentRef.current = true;
+		request_url(true);
+	}, [request_url]);
+
+	const retry = useCallback(() => {
+		setErrorMessage(null);
+		request_url(true);
+	}, [request_url]);
+
+	return { mediaUrl, errorMessage, notify_load_success, notify_load_error, retry };
+}
+
+export function GalleryTile(props: { item: FilesListItem; media: MediaUrlManager }) {
+	const media_url = use_media_url(props.media, props.item.nodeId, "cached");
 
 	const is_video = props.item.contentType !== null && props.item.contentType.startsWith("video/");
 
 	return (
-		<a className="tile" href={`#/file/${encodeURIComponent(props.item.nodeId)}`}>
-			{url === null ? (
-				<span className={failed ? "tile-placeholder is-failed" : "tile-placeholder"} />
-			) : is_video ? (
-				<>
-					<video className="tile-media" src={url} preload="metadata" muted />
-					<span className="tile-play" aria-hidden="true">
-						▶
-					</span>
-				</>
-			) : (
-				<img className="tile-media" src={url} alt={props.item.name} loading="lazy" />
-			)}
-			<span className="tile-name">{props.item.name}</span>
-		</a>
+		<div className="tile">
+			<a className="tile-link" href={`#/file/${encodeURIComponent(props.item.nodeId)}`}>
+				{media_url.mediaUrl === null ? (
+					<span className={media_url.errorMessage !== null ? "tile-placeholder is-failed" : "tile-placeholder"} />
+				) : is_video ? (
+					<>
+						<video
+							className="tile-media"
+							src={media_url.mediaUrl.url}
+							preload="metadata"
+							muted
+							onLoadedMetadata={media_url.notify_load_success}
+							onError={media_url.notify_load_error}
+						/>
+						<span className="tile-play" aria-hidden="true">
+							▶
+						</span>
+					</>
+				) : (
+					<img
+						className="tile-media"
+						src={media_url.mediaUrl.url}
+						alt={props.item.name}
+						loading="lazy"
+						onLoad={media_url.notify_load_success}
+						onError={media_url.notify_load_error}
+					/>
+				)}
+				<span className="tile-name">{props.item.name}</span>
+			</a>
+			{media_url.errorMessage !== null ? (
+				<button className="button tile-retry" aria-label={`Retry ${props.item.name}`} onClick={media_url.retry}>
+					Retry
+				</button>
+			) : null}
+		</div>
 	);
 }
 
-function FileDetail(props: { nodeId: string; item: FilesListItem | undefined; media: MediaUrlManager }) {
-	const [url, setUrl] = useState<string | null>(null);
-	const [error, setError] = useState<string | null>(null);
+export function FileDetail(props: { nodeId: string; item: FilesListItem | undefined; media: MediaUrlManager }) {
+	// Detail view: always mint a fresh URL so playback never starts on a near-expiry link.
+	const media_url = use_media_url(props.media, props.nodeId, "fresh");
+	const videoRef = useRef<HTMLVideoElement | null>(null);
+	// Playback position captured when the video URL fails mid-session, restored onto the
+	// renewed URL once its metadata loads.
+	const restoreRef = useRef<{ currentTime: number; paused: boolean } | null>(null);
 
-	useEffect(() => {
-		let cancelled = false;
-		setUrl(null);
-		setError(null);
-		props.media.get_fresh_url(props.nodeId).then(
-			(url) => {
-				if (!cancelled) {
-					setUrl(url);
-				}
-			},
-			(error: unknown) => {
-				if (!cancelled) {
-					setError(get_error_message(error));
-				}
-			},
-		);
-		return () => {
-			cancelled = true;
-		};
-	}, [props.nodeId, props.media]);
+	const handle_video_error = useCallback(() => {
+		const video = videoRef.current;
+		if (video && Number.isFinite(video.currentTime)) {
+			restoreRef.current = { currentTime: video.currentTime, paused: video.paused };
+		}
+		media_url.notify_load_error();
+	}, [media_url.notify_load_error]);
+
+	const handle_video_loaded_metadata = useCallback(() => {
+		media_url.notify_load_success();
+		const video = videoRef.current;
+		if (!video) {
+			return;
+		}
+		const restore = restoreRef.current;
+		restoreRef.current = null;
+		if (restore) {
+			video.currentTime = restore.currentTime;
+			if (!restore.paused) {
+				// Autoplay of the renewed URL may be blocked; the user still has controls.
+				video.play().catch(() => {});
+			}
+		} else {
+			// First load of this view: a blocked autoplay must not surface an unhandled rejection.
+			video.play().catch(() => {});
+		}
+	}, [media_url.notify_load_success]);
 
 	const item = props.item;
 	const is_video = item !== undefined && item.contentType !== null && item.contentType.startsWith("video/");
@@ -369,14 +269,32 @@ function FileDetail(props: { nodeId: string; item: FilesListItem | undefined; me
 				) : null}
 			</div>
 			<div className="viewer-stage">
-				{error !== null ? (
-					<div className="viewer-status is-error">{error}</div>
-				) : url === null ? (
-					<div className="viewer-status">Loading…</div>
+				{media_url.errorMessage !== null ? (
+					<div className="viewer-status is-error" role="alert">
+						<span>{media_url.errorMessage}</span>
+						<button className="button" onClick={media_url.retry}>
+							Retry
+						</button>
+					</div>
+				) : media_url.mediaUrl === null ? (
+					<div className="viewer-status" role="status" aria-live="polite">
+						Loading…
+					</div>
 				) : is_video ? (
-					<video src={url} controls autoPlay />
+					<video
+						ref={videoRef}
+						src={media_url.mediaUrl.url}
+						controls
+						onLoadedMetadata={handle_video_loaded_metadata}
+						onError={handle_video_error}
+					/>
 				) : (
-					<img src={url} alt={item !== undefined ? item.name : ""} />
+					<img
+						src={media_url.mediaUrl.url}
+						alt={item !== undefined ? item.name : "File preview"}
+						onLoad={media_url.notify_load_success}
+						onError={media_url.notify_load_error}
+					/>
 				)}
 			</div>
 		</div>

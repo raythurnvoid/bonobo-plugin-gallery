@@ -4,7 +4,15 @@ import { App } from "./app";
 import "./gallery.css";
 
 function BootScreen(props: { message: string; isError?: boolean }) {
-	return <div className={props.isError ? "boot-screen is-error" : "boot-screen"}>{props.message}</div>;
+	return (
+		<div
+			className={props.isError ? "boot-screen is-error" : "boot-screen"}
+			role={props.isError ? "alert" : "status"}
+			aria-live={props.isError ? undefined : "polite"}
+		>
+			{props.message}
+		</div>
+	);
 }
 
 const container = document.getElementById("root");

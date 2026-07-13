@@ -9,6 +9,8 @@ export default defineConfig({
 	base: "./",
 	build: {
 		outDir: "dist/frontend",
+		// Published plugin source stays readable and reviewable.
+		minify: false,
 		rollupOptions: {
 			output: {
 				entryFileNames: "assets/index.js",
