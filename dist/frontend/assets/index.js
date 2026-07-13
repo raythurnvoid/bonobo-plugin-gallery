@@ -32,17 +32,17 @@ var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).expor
 	}
 })();
 //#endregion
-//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_35b324a9a27bc96c1a131622e63b964d/node_modules/bonobo-plugin-sdk/frontend.js
+//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_5f0cf936df3b8ca4a41a8398388049a7/node_modules/bonobo-plugin-sdk/frontend.js
 /**
 * Bonobo plugin frontend bridge — hand-written browser ESM, no dependencies, no build step.
 *
 * Runs inside the host app's sandboxed plugin-page iframe (`sandbox="allow-scripts"`, so the
-* document has an opaque origin) and talks to the embedding host app over the v2 postMessage
+* document has an opaque origin) and talks to the embedding host app over the v1 postMessage
 * protocol: the page announces `bonobo:ready`, the host answers `bonobo:init` with a
 * short-lived scoped bearer token, and from then on the client calls the public `/api/v1/*` API
 * on `apiOrigin` directly with `Authorization: Bearer <token>`.
 */
-var PROTOCOL_VERSION = 2;
+var PROTOCOL_VERSION = 1;
 /** `getToken` refreshes when the token is expired or expires within this margin. */
 var TOKEN_EXPIRY_MARGIN_MS = 6e4;
 var CONNECTION_DEADLINE_MS = 14e3;
@@ -57,9 +57,9 @@ function is_page_context(value) {
 }
 /**
 * Connects the page to the embedding host app. It installs one shared `message` listener (for
-* init and token responses), posts `{ type: "bonobo:ready", protocolVersion: 2 }` to
+* init and token responses), posts `{ type: "bonobo:ready", protocolVersion: 1 }` to
 * `window.parent`, and resolves with the frontend client when the host's `bonobo:init`
-* (protocol v2) arrives. `bonobo:init` messages after the first are ignored.
+* (protocol v1) arrives. `bonobo:init` messages after the first are ignored.
 *
 * Reads `parentOrigin` and `bridgeNonce` from the query params the host appends to the iframe
 * URL, and throws when either is missing.
