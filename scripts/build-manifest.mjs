@@ -19,6 +19,7 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const MAX_REVIEW_LINE_LENGTH = 1_000;
 
 function fail(message) {
 	console.error(`build-manifest: ${message}`);
@@ -83,6 +84,21 @@ for (const file of manifest.files) {
 		fileBytes = readFileSync(join(repoRoot, file.path));
 	} catch {
 		fail(`Manifest file is missing on disk: "${file.path}"`);
+	}
+	// Publishing rejects unreadably long source lines, so fail the build before this artifact can be released.
+	if (
+		file.contentType.startsWith("text/") ||
+		file.contentType === "application/javascript" ||
+		file.contentType === "application/json" ||
+		file.contentType === "image/svg+xml"
+	) {
+		const longestLine = fileBytes
+			.toString("utf8")
+			.split(/\r?\n/u)
+			.reduce((longest, line) => Math.max(longest, line.length), 0);
+		if (longestLine > MAX_REVIEW_LINE_LENGTH) {
+			fail(`Manifest file has a ${longestLine}-character line: "${file.path}"`);
+		}
 	}
 	const sha256 = `sha256:${createHash("sha256").update(fileBytes).digest("hex")}`;
 	const anchorPattern = new RegExp(`"path"\\s*:\\s*${escapeRegExp(JSON.stringify(file.path))}`);
