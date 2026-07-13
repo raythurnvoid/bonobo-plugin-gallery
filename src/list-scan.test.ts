@@ -118,6 +118,64 @@ test("dense terminal page: 12 exposed, later clicks drain the buffer without new
 	expect(fetchJson).toHaveBeenCalledTimes(1);
 });
 
+test("dense nonterminal overflow drains before the next necessary fetch", async () => {
+	let pages_served = 0;
+	const fetchJson = vi.fn(async () => {
+		pages_served += 1;
+		if (pages_served === 1) {
+			return { items: media_items(25, "a"), cursor: "c1", isDone: false };
+		}
+		return { items: media_items(11, "b"), cursor: null, isDone: true };
+	});
+	const scan = create_list_scan(make_client(fetchJson));
+
+	const first = await scan.load_next();
+	const second = await scan.load_next();
+	expect(first.items).toHaveLength(PAGE_SIZE);
+	expect(second.items).toHaveLength(PAGE_SIZE);
+	expect(fetchJson).toHaveBeenCalledTimes(1);
+
+	const third = await scan.load_next();
+	expect(third.items.map((item) => item.nodeId)).toEqual([
+		"a24",
+		"b0",
+		"b1",
+		"b2",
+		"b3",
+		"b4",
+		"b5",
+		"b6",
+		"b7",
+		"b8",
+		"b9",
+		"b10",
+	]);
+	expect(fetchJson).toHaveBeenCalledTimes(2);
+	expect(scan.has_more()).toBe(false);
+});
+
+test("a capped scan resumes from its saved cursor on the next click", async () => {
+	let pages_served = 0;
+	const fetchJson = vi.fn(async (_path: string, init: { body: Record<string, unknown> }) => {
+		pages_served += 1;
+		if (pages_served <= LIST_PAGE_BUDGET) {
+			return { items: [], cursor: `c${pages_served}`, isDone: false };
+		}
+		return { items: [media_item("found")], cursor: null, isDone: true };
+	});
+	const scan = create_list_scan(make_client(fetchJson));
+
+	const capped = await scan.load_next();
+	expect(capped.items).toHaveLength(0);
+	expect(scan.has_more()).toBe(true);
+	expect(fetchJson).toHaveBeenCalledTimes(LIST_PAGE_BUDGET);
+
+	const resumed = await scan.load_next();
+	expect(fetchJson.mock.calls[LIST_PAGE_BUDGET][1].body.cursor).toBe(`c${LIST_PAGE_BUDGET}`);
+	expect(resumed.items.map((item) => item.nodeId)).toEqual(["found"]);
+	expect(scan.has_more()).toBe(false);
+});
+
 test("items repeated across pages are deduplicated by nodeId", async () => {
 	let pages_served = 0;
 	const fetchJson = vi.fn(async (_path: string, _init: { body: Record<string, unknown> }) => {

@@ -104,10 +104,10 @@ export function App(props: { client: BonoboUiFrontendClient }) {
 /**
  * A component's signed media URL with failure recovery: one automatic renewal per failure
  * episode (`notify_load_error`), reset only by a successful load (`notify_load_success`),
- * then a manual `retry`. Initial requests and renewals both go through the manager's shared
- * pool and per-node dedup.
+ * then a manual `retry`. Initial requests coalesce into the manager's batched calls;
+ * renewals go through its single-node pool — both with per-node dedup.
  */
-function use_media_url(media: MediaUrlManager, nodeId: string, mode: "cached" | "fresh") {
+function use_media_url(media: MediaUrlManager, nodeId: string) {
 	const [mediaUrl, setMediaUrl] = useState<MediaUrl | null>(null);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const autoRenewSpentRef = useRef(false);
@@ -117,7 +117,7 @@ function use_media_url(media: MediaUrlManager, nodeId: string, mode: "cached" | 
 	const request_url = useCallback(
 		(fresh: boolean) => {
 			const generation = generationRef.current;
-			const promise = fresh || mode === "fresh" ? media.get_fresh_url(nodeId) : media.get_url(nodeId);
+			const promise = fresh ? media.get_fresh_url(nodeId) : media.get_url(nodeId);
 			promise.then(
 				(media_url) => {
 					if (generationRef.current === generation) {
@@ -133,7 +133,7 @@ function use_media_url(media: MediaUrlManager, nodeId: string, mode: "cached" | 
 				},
 			);
 		},
-		[media, nodeId, mode],
+		[media, nodeId],
 	);
 
 	useEffect(() => {
@@ -170,7 +170,7 @@ function use_media_url(media: MediaUrlManager, nodeId: string, mode: "cached" | 
 }
 
 export function GalleryTile(props: { item: FilesListItem; media: MediaUrlManager }) {
-	const media_url = use_media_url(props.media, props.item.nodeId, "cached");
+	const media_url = use_media_url(props.media, props.item.nodeId);
 
 	const is_video = props.item.contentType !== null && props.item.contentType.startsWith("video/");
 
@@ -197,7 +197,7 @@ export function GalleryTile(props: { item: FilesListItem; media: MediaUrlManager
 					<img
 						className="tile-media"
 						src={media_url.mediaUrl.url}
-						alt={props.item.name}
+						alt=""
 						loading="lazy"
 						onLoad={media_url.notify_load_success}
 						onError={media_url.notify_load_error}
@@ -215,8 +215,10 @@ export function GalleryTile(props: { item: FilesListItem; media: MediaUrlManager
 }
 
 export function FileDetail(props: { nodeId: string; item: FilesListItem | undefined; media: MediaUrlManager }) {
-	// Detail view: always mint a fresh URL so playback never starts on a near-expiry link.
-	const media_url = use_media_url(props.media, props.nodeId, "fresh");
+	// Detail view: reuse the grid's cached URL when it is comfortably before expiry; get_url
+	// only mints when the entry is missing or within the 60s margin. A reused URL that turns
+	// out to be dead still goes through the one-automatic-renewal fallback.
+	const media_url = use_media_url(props.media, props.nodeId);
 	const videoRef = useRef<HTMLVideoElement | null>(null);
 	// Playback position captured when the video URL fails mid-session, restored onto the
 	// renewed URL once its metadata loads.

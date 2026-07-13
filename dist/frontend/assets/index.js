@@ -14391,6 +14391,8 @@ function create_media_url_manager(client) {
 	const pending = /* @__PURE__ */ new Map();
 	const waiters = [];
 	let active_requests = 0;
+	const batch_queue = [];
+	let batch_flush_active = false;
 	function acquire_slot() {
 		if (active_requests < 4) {
 			active_requests += 1;
@@ -14424,11 +14426,61 @@ function create_media_url_manager(client) {
 		pending.set(nodeId, request);
 		return request;
 	}
+	function request_download_url_batched(nodeId) {
+		const in_flight = pending.get(nodeId);
+		if (in_flight) return in_flight;
+		const request = new Promise((resolve, reject) => {
+			batch_queue.push({
+				nodeId,
+				resolve,
+				reject,
+			});
+		});
+		pending.set(nodeId, request);
+		if (!batch_flush_active) {
+			batch_flush_active = true;
+			setTimeout(() => void flush_batch_queue(), 0);
+		}
+		return request;
+	}
+	async function flush_batch_queue() {
+		while (batch_queue.length > 0) {
+			const entries = batch_queue.splice(0, 12);
+			await acquire_slot();
+			try {
+				const response = await fetch_json_with_429_retry(client, "/api/v1/files/download-urls", {
+					fileNodeIds: entries.map((entry) => entry.nodeId),
+				});
+				const items_by_node_id = new Map(response.items.map((item) => [item.fileNodeId, item]));
+				const errors_by_node_id = new Map(response.errors.map((item) => [item.fileNodeId, item.message]));
+				for (const entry of entries) {
+					pending.delete(entry.nodeId);
+					const item = items_by_node_id.get(entry.nodeId);
+					if (item) {
+						const media = {
+							url: item.url,
+							expiresAt: item.expiresAt,
+						};
+						cache.set(entry.nodeId, media);
+						entry.resolve(media);
+					} else entry.reject(new Error(errors_by_node_id.get(entry.nodeId) ?? "Not found"));
+				}
+			} catch (error) {
+				for (const entry of entries) {
+					pending.delete(entry.nodeId);
+					entry.reject(error);
+				}
+			} finally {
+				release_slot();
+			}
+		}
+		batch_flush_active = false;
+	}
 	return {
 		get_url(nodeId) {
 			const cached = cache.get(nodeId);
 			if (cached && Date.now() < cached.expiresAt - 6e4) return Promise.resolve(cached);
-			return request_download_url(nodeId);
+			return request_download_url_batched(nodeId);
 		},
 		get_fresh_url(nodeId) {
 			return request_download_url(nodeId);
@@ -14593,10 +14645,10 @@ function App(props) {
 /**
  * A component's signed media URL with failure recovery: one automatic renewal per failure
  * episode (`notify_load_error`), reset only by a successful load (`notify_load_success`),
- * then a manual `retry`. Initial requests and renewals both go through the manager's shared
- * pool and per-node dedup.
+ * then a manual `retry`. Initial requests coalesce into the manager's batched calls;
+ * renewals go through its single-node pool — both with per-node dedup.
  */
-function use_media_url(media, nodeId, mode) {
+function use_media_url(media, nodeId) {
 	const [mediaUrl, setMediaUrl] = (0, import_react.useState)(null);
 	const [errorMessage, setErrorMessage] = (0, import_react.useState)(null);
 	const autoRenewSpentRef = (0, import_react.useRef)(false);
@@ -14604,7 +14656,7 @@ function use_media_url(media, nodeId, mode) {
 	const request_url = (0, import_react.useCallback)(
 		(fresh) => {
 			const generation = generationRef.current;
-			(fresh || mode === "fresh" ? media.get_fresh_url(nodeId) : media.get_url(nodeId)).then(
+			(fresh ? media.get_fresh_url(nodeId) : media.get_url(nodeId)).then(
 				(media_url) => {
 					if (generationRef.current === generation) {
 						setMediaUrl(media_url);
@@ -14619,7 +14671,7 @@ function use_media_url(media, nodeId, mode) {
 				},
 			);
 		},
-		[media, nodeId, mode],
+		[media, nodeId],
 	);
 	(0, import_react.useEffect)(() => {
 		autoRenewSpentRef.current = false;
@@ -14652,7 +14704,7 @@ function use_media_url(media, nodeId, mode) {
 	};
 }
 function GalleryTile(props) {
-	const media_url = use_media_url(props.media, props.item.nodeId, "cached");
+	const media_url = use_media_url(props.media, props.item.nodeId);
 	const is_video = props.item.contentType !== null && props.item.contentType.startsWith("video/");
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: "tile",
@@ -14686,7 +14738,7 @@ function GalleryTile(props) {
 							: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
 									className: "tile-media",
 									src: media_url.mediaUrl.url,
-									alt: props.item.name,
+									alt: "",
 									loading: "lazy",
 									onLoad: media_url.notify_load_success,
 									onError: media_url.notify_load_error,
@@ -14709,7 +14761,7 @@ function GalleryTile(props) {
 	});
 }
 function FileDetail(props) {
-	const media_url = use_media_url(props.media, props.nodeId, "fresh");
+	const media_url = use_media_url(props.media, props.nodeId);
 	const videoRef = (0, import_react.useRef)(null);
 	const restoreRef = (0, import_react.useRef)(null);
 	const handle_video_error = (0, import_react.useCallback)(() => {
