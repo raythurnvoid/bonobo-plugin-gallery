@@ -1,7 +1,7 @@
 {
 	"name": "@bonobo/plugin-gallery",
 	"private": true,
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"type": "module",
 	"scripts": {
 		"build": "vite build && node scripts/build-manifest.mjs",
@@ -13,7 +13,7 @@
 	},
 	"packageManager": "pnpm@10.33.0",
 	"dependencies": {
-		"bonobo-plugin-sdk": "github:raythurnvoid/bonobo-plugin-sdk#d2ce29f5d22df38f089f977998882e3b7ad88d47",
+		"bonobo-plugin-sdk": "github:raythurnvoid/bonobo-plugin-sdk#4a829e390c4121d7d405b81fa8f83c6ccbeb63fb",
 		"react": "^19.2.7",
 		"react-dom": "^19.2.7"
 	},
