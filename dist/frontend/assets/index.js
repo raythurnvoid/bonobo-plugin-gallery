@@ -14411,10 +14411,14 @@ function create_media_url_manager(client) {
 		const request = (async () => {
 			await acquire_slot();
 			try {
-				const response = await fetch_json_with_429_retry(client, "/api/v1/files/download-url", { fileNodeId: nodeId });
+				const response = await fetch_json_with_429_retry(client, "/api/v1/files/download-urls", {
+					fileNodeIds: [nodeId],
+				});
+				const item = response.items[0];
+				if (!item) throw new Error(response.errors[0]?.message ?? "Not found");
 				const media = {
-					url: response.url,
-					expiresAt: response.expiresAt,
+					url: item.url,
+					expiresAt: item.expiresAt,
 				};
 				cache.set(nodeId, media);
 				return media;

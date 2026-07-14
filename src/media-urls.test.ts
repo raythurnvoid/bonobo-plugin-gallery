@@ -27,7 +27,11 @@ function flush_microtasks(): Promise<void> {
 }
 
 function download_url_response(nodeId: string, url: string, expiresAt: number) {
-	return { fileNodeId: nodeId, url, expiresAt };
+	return {
+		items: [{ fileNodeId: nodeId, url, expiresAt }],
+		errors: [],
+		truncated: false,
+	};
 }
 
 function download_urls_response(nodeIds: string[], expiresAt: number, failedNodeIds: string[] = []) {
@@ -41,8 +45,8 @@ function download_urls_response(nodeIds: string[], expiresAt: number, failedNode
 }
 
 function make_manager() {
-	const calls: Array<{ path: string; body: { fileNodeId?: string; fileNodeIds?: string[] }; gate: Deferred }> = [];
-	const fetchJson = vi.fn((path: string, init: { body: { fileNodeId?: string; fileNodeIds?: string[] } }) => {
+	const calls: Array<{ path: string; body: { fileNodeIds: string[] }; gate: Deferred }> = [];
+	const fetchJson = vi.fn((path: string, init: { body: { fileNodeIds: string[] } }) => {
 		const gate = deferred();
 		calls.push({ path, body: init.body, gate });
 		return gate.promise;
@@ -138,12 +142,12 @@ test("get_url serves a fresh cache without a request; get_fresh_url always re-mi
 	expect(cached.url).toBe("u-n1");
 	expect(fetchJson).toHaveBeenCalledTimes(1);
 
-	// A renewal skips the cache and mints again through the single-node endpoint.
+	// A renewal skips the cache and mints again through a one-item batch request.
 	const fresh = media.get_fresh_url("n1");
 	await flush_microtasks();
 	expect(fetchJson).toHaveBeenCalledTimes(2);
-	expect(calls[1].path).toBe("/api/v1/files/download-url");
-	expect(calls[1].body.fileNodeId).toBe("n1");
+	expect(calls[1].path).toBe("/api/v1/files/download-urls");
+	expect(calls[1].body.fileNodeIds).toEqual(["n1"]);
 	calls[1].gate.resolve(download_url_response("n1", "u2", Date.now() + 600_000));
 	expect((await fresh).url).toBe("u2");
 });
@@ -158,10 +162,10 @@ test("renewals share the four-slot pool", async () => {
 	calls[0].gate.resolve(download_url_response("n1", "u1", Date.now() + 600_000));
 	await flush_microtasks();
 	expect(fetchJson).toHaveBeenCalledTimes(5);
-	expect(calls[4].body.fileNodeId).toBe("n5");
+	expect(calls[4].body.fileNodeIds).toEqual(["n5"]);
 
 	for (const pending of calls.slice(1, 5)) {
-		const nodeId = pending.body.fileNodeId ?? "";
+		const nodeId = pending.body.fileNodeIds[0];
 		pending.gate.resolve(download_url_response(nodeId, `u-${nodeId}`, Date.now() + 600_000));
 	}
 	await flush_microtasks();
@@ -176,10 +180,10 @@ test("initial batches and renewals share one four-slot pool", async () => {
 	let max_active_requests = 0;
 	const calls: Array<{
 		path: string;
-		body: { fileNodeId?: string; fileNodeIds?: string[] };
+		body: { fileNodeIds: string[] };
 		gate: Deferred;
 	}> = [];
-	const fetchJson = vi.fn((path: string, init: { body: { fileNodeId?: string; fileNodeIds?: string[] } }) => {
+	const fetchJson = vi.fn((path: string, init: { body: { fileNodeIds: string[] } }) => {
 		const gate = deferred();
 		active_requests += 1;
 		max_active_requests = Math.max(max_active_requests, active_requests);
@@ -198,20 +202,20 @@ test("initial batches and renewals share one four-slot pool", async () => {
 
 	for (let index = 0; index < 2; index += 1) {
 		const call = calls[index];
-		const nodeId = call.body.fileNodeId ?? "";
+		const nodeId = call.body.fileNodeIds[0];
 		call.gate.resolve(download_url_response(nodeId, `u-${nodeId}`, Date.now() + 600_000));
 		await flush_microtasks();
 		expect(active_requests).toBe(MAX_CONCURRENT_URL_REQUESTS);
 		expect(max_active_requests).toBe(MAX_CONCURRENT_URL_REQUESTS);
 	}
 
-	const batch = calls.find((call) => call.path === "/api/v1/files/download-urls");
+	const batch = calls.find((call) => call.body.fileNodeIds[0] === "initial");
 	expect(batch?.body.fileNodeIds).toEqual(["initial"]);
 	for (const call of calls.filter((candidate) => candidate !== batch)) {
-		if (call.body.fileNodeId === "r1" || call.body.fileNodeId === "r2") {
+		const nodeId = call.body.fileNodeIds[0];
+		if (nodeId === "r1" || nodeId === "r2") {
 			continue;
 		}
-		const nodeId = call.body.fileNodeId ?? "";
 		call.gate.resolve(download_url_response(nodeId, `u-${nodeId}`, Date.now() + 600_000));
 	}
 	batch?.gate.resolve(download_urls_response(["initial"], Date.now() + 600_000));

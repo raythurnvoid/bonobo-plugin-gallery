@@ -1,7 +1,7 @@
 {
 	"name": "@bonobo/plugin-gallery",
 	"private": true,
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"type": "module",
 	"scripts": {
 		"build": "vite build && prettier --write dist/frontend/assets/index.js dist/frontend/assets/index.css && node scripts/build-manifest.mjs",

@@ -6,8 +6,8 @@ export const URL_EXPIRY_MARGIN_MS = 60_000;
 /** Initial batches and renewals share this four-request HTTP pool. */
 export const MAX_CONCURRENT_URL_REQUESTS = 4;
 /**
- * Node ids per batched download-urls call. Twelve matches one visible Gallery page and stays
- * below that route's 20-id server limit; single-node renewals use a separate route bucket.
+ * Node ids per download-urls call. Twelve matches one visible Gallery page and stays below the
+ * route's 20-id server limit.
  */
 export const MAX_URL_BATCH_IDS = 12;
 
@@ -72,8 +72,8 @@ export function create_media_url_manager(client: BonoboUiFrontendClient): MediaU
 		}
 	}
 
-	// Renewals: single-node download-url request through the four-slot pool, per-node
-	// in-flight promise, same 3s/6s 429 back-off.
+	// Renewals use a one-item download-urls request through the four-slot pool. They share the
+	// same per-node in-flight promise and 3s/6s 429 back-off as initial batches.
 	function request_download_url(nodeId: string): Promise<MediaUrl> {
 		const in_flight = pending.get(nodeId);
 		if (in_flight) {
@@ -82,10 +82,14 @@ export function create_media_url_manager(client: BonoboUiFrontendClient): MediaU
 		const request = (async () => {
 			await acquire_slot();
 			try {
-				const response = (await fetch_json_with_429_retry(client, "/api/v1/files/download-url", {
-					fileNodeId: nodeId,
-				})) as FilesDownloadUrlResponse;
-				const media = { url: response.url, expiresAt: response.expiresAt };
+				const response = (await fetch_json_with_429_retry(client, "/api/v1/files/download-urls", {
+					fileNodeIds: [nodeId],
+				})) as FilesDownloadUrlsResponse;
+				const item = response.items[0];
+				if (!item) {
+					throw new Error(response.errors[0]?.message ?? "Not found");
+				}
+				const media = { url: item.url, expiresAt: item.expiresAt };
 				cache.set(nodeId, media);
 				return media;
 			} finally {
