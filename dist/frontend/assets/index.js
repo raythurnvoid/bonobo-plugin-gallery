@@ -33,7 +33,7 @@ var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).expor
 	}
 })();
 //#endregion
-//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_1d0b3c13680b501e60bde1e89e7ae7ef/node_modules/bonobo-plugin-sdk/frontend.js
+//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_9b350a714125c7282060ab2a10145365/node_modules/bonobo-plugin-sdk/frontend.js
 /**
  * Bonobo plugin frontend bridge — hand-written browser ESM, no dependencies, no build step.
  *
@@ -47,6 +47,7 @@ var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).expor
 var TOKEN_EXPIRY_MARGIN_MS = 6e4;
 var READY_RETRY_MS = 500;
 var REFRESH_DEADLINE_MS = 1e4;
+var BRIDGE_NONCE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 /** @param {unknown} value */
 function is_page_context(value) {
 	if (typeof value !== "object" || value === null) return false;
@@ -60,21 +61,51 @@ function is_page_context(value) {
 	);
 }
 /**
+ * Reads the host origin and frame nonce from the URL fragment. The fragment is available to the
+ * page but is not sent in the asset request, cache key, or referrer.
+ */
+function read_bridge_bootstrap() {
+	const fragment = window.location.hash.slice(1);
+	if (!fragment) throw new Error("Missing host bridge fragment — the page must be embedded by the Bonobo host app");
+	const params = new URLSearchParams(fragment);
+	const parentOrigins = params.getAll("parentOrigin");
+	const bridgeNonces = params.getAll("bridgeNonce");
+	if (params.size !== 2 || parentOrigins.length !== 1 || bridgeNonces.length !== 1)
+		throw new Error("Invalid host bridge fragment");
+	const parentOrigin = parentOrigins[0];
+	const bridgeNonce = bridgeNonces[0];
+	let parsedParentOrigin;
+	try {
+		parsedParentOrigin = new URL(parentOrigin);
+	} catch {
+		throw new Error("Invalid host bridge parent origin");
+	}
+	if (
+		(parsedParentOrigin.protocol !== "http:" && parsedParentOrigin.protocol !== "https:") ||
+		parsedParentOrigin.origin !== parentOrigin
+	)
+		throw new Error("Invalid host bridge parent origin");
+	if (!BRIDGE_NONCE_PATTERN.test(bridgeNonce)) throw new Error("Invalid host bridge nonce");
+	return {
+		parentOrigin,
+		bridgeNonce,
+	};
+}
+/**
  * Connects the page to the embedding host app. It installs one shared `message` listener (for
- * init and token responses), posts `{ type: "bonobo:ready" }` to
- * `window.parent`, and resolves with the frontend client when the host's `bonobo:init`
- * arrives. `bonobo:init` messages after the first are ignored.
+ * init and token responses), posts `{ type: "bonobo:ready", bridgeNonce }` to `window.parent`,
+ * and resolves with the frontend client when the host's `bonobo:init` arrives. `bonobo:init`
+ * messages after the first are ignored.
  *
- * The initial ready message contains no secret and uses `targetOrigin: "*"` because the page
- * does not know its host origin yet. The first valid init must come from `window.parent`; its
- * exact origin and nonce are then pinned for every refresh message. The token travels over
+ * The host puts its canonical HTTP(S) origin and a fresh frame nonce in the URL fragment. The SDK
+ * validates both before connecting, sends ready only to that exact origin, and accepts host
+ * messages only from that origin, `window.parent`, and the matching nonce. The token travels over
  * postMessage only and is never placed in a URL.
  *
  * @returns {Promise<import("bonobo-plugin-sdk/frontend").BonoboUiFrontendClient>}
  */
 async function bonobo_ui_connect() {
-	let parentOrigin = "";
-	let bridgeNonce = "";
+	const { parentOrigin, bridgeNonce } = read_bridge_bootstrap();
 	let apiOrigin = "";
 	let token = "";
 	let tokenExpiresAt = 0;
@@ -172,21 +203,26 @@ async function bonobo_ui_connect() {
 		/** @type {ReturnType<typeof setInterval> | undefined} */
 		let readyInterval;
 		const post_ready = () => {
-			window.parent.postMessage({ type: "bonobo:ready" }, "*");
+			window.parent.postMessage(
+				{
+					type: "bonobo:ready",
+					bridgeNonce,
+				},
+				parentOrigin,
+			);
 		};
 		const stop_ready = () => {
 			clearInterval(readyInterval);
 		};
 		/** @param {MessageEvent} event */
 		const handle_message = (event) => {
-			if (event.source !== window.parent) return;
+			if (event.source !== window.parent || event.origin !== parentOrigin) return;
 			const message = event.data;
 			if (typeof message !== "object" || message === null) return;
 			if (
 				message.type === "bonobo:init" &&
 				!initialized &&
-				typeof message.bridgeNonce === "string" &&
-				message.bridgeNonce.length > 0 &&
+				message.bridgeNonce === bridgeNonce &&
 				typeof message.apiOrigin === "string" &&
 				typeof message.token === "string" &&
 				typeof message.tokenExpiresAt === "number" &&
@@ -196,8 +232,6 @@ async function bonobo_ui_connect() {
 				initialized = true;
 				stop_ready();
 				window.removeEventListener("pagehide", stop_ready);
-				parentOrigin = event.origin;
-				bridgeNonce = message.bridgeNonce;
 				apiOrigin = message.apiOrigin;
 				token = message.token;
 				tokenExpiresAt = message.tokenExpiresAt;
@@ -210,7 +244,6 @@ async function bonobo_ui_connect() {
 				});
 			} else if (
 				initialized &&
-				event.origin === parentOrigin &&
 				message.bridgeNonce === bridgeNonce &&
 				message.type === "bonobo:token" &&
 				typeof message.requestId === "string" &&
@@ -228,7 +261,6 @@ async function bonobo_ui_connect() {
 				}
 			} else if (
 				initialized &&
-				event.origin === parentOrigin &&
 				message.bridgeNonce === bridgeNonce &&
 				message.type === "bonobo:token-error" &&
 				typeof message.requestId === "string" &&
