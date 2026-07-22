@@ -33,22 +33,19 @@ var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).expor
 	}
 })();
 //#endregion
-//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_5f0cf936df3b8ca4a41a8398388049a7/node_modules/bonobo-plugin-sdk/frontend.js
+//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_1d0b3c13680b501e60bde1e89e7ae7ef/node_modules/bonobo-plugin-sdk/frontend.js
 /**
  * Bonobo plugin frontend bridge — hand-written browser ESM, no dependencies, no build step.
  *
  * Runs inside the host app's sandboxed plugin-page iframe (`sandbox="allow-scripts"`, so the
- * document has an opaque origin) and talks to the embedding host app over the v1 postMessage
- * protocol: the page announces `bonobo:ready`, the host answers `bonobo:init` with a
+ * document has an opaque origin) and talks to the embedding host app over the current strict
+ * postMessage contract: the page announces `bonobo:ready`, the host answers `bonobo:init` with a
  * short-lived scoped bearer token, and from then on the client calls the public `/api/v1/*` API
  * on `apiOrigin` directly with `Authorization: Bearer <token>`.
  */
-var PROTOCOL_VERSION = 1;
 /** `getToken` refreshes when the token is expired or expires within this margin. */
 var TOKEN_EXPIRY_MARGIN_MS = 6e4;
-var CONNECTION_DEADLINE_MS = 14e3;
 var READY_RETRY_MS = 500;
-var READY_ATTEMPTS = 20;
 var REFRESH_DEADLINE_MS = 1e4;
 /** @param {unknown} value */
 function is_page_context(value) {
@@ -64,29 +61,20 @@ function is_page_context(value) {
 }
 /**
  * Connects the page to the embedding host app. It installs one shared `message` listener (for
- * init and token responses), posts `{ type: "bonobo:ready", protocolVersion: 1 }` to
+ * init and token responses), posts `{ type: "bonobo:ready" }` to
  * `window.parent`, and resolves with the frontend client when the host's `bonobo:init`
- * (protocol v1) arrives. `bonobo:init` messages after the first are ignored.
+ * arrives. `bonobo:init` messages after the first are ignored.
  *
- * Reads `parentOrigin` and `bridgeNonce` from the query params the host appends to the iframe
- * URL, and throws when either is missing.
- *
- * Security: outgoing messages are posted to `window.parent` with exactly
- * `targetOrigin: parentOrigin`. Incoming messages are accepted only when
- * `event.origin === parentOrigin` and `event.source === window.parent`; everything else —
- * including unknown `type` values — is silently ignored. The token travels over postMessage
- * only and is never placed in a URL.
+ * The initial ready message contains no secret and uses `targetOrigin: "*"` because the page
+ * does not know its host origin yet. The first valid init must come from `window.parent`; its
+ * exact origin and nonce are then pinned for every refresh message. The token travels over
+ * postMessage only and is never placed in a URL.
  *
  * @returns {Promise<import("bonobo-plugin-sdk/frontend").BonoboUiFrontendClient>}
  */
 async function bonobo_ui_connect() {
-	const query = new URLSearchParams(window.location.search);
-	const parentOriginParam = query.get("parentOrigin");
-	const bridgeNonceParam = query.get("bridgeNonce");
-	if (!parentOriginParam || !bridgeNonceParam)
-		throw new Error("Missing host bridge query params — the page must be embedded by the Bonobo host app");
-	const parentOrigin = parentOriginParam;
-	const bridgeNonce = bridgeNonceParam;
+	let parentOrigin = "";
+	let bridgeNonce = "";
 	let apiOrigin = "";
 	let token = "";
 	let tokenExpiresAt = 0;
@@ -128,7 +116,6 @@ async function bonobo_ui_connect() {
 				window.parent.postMessage(
 					{
 						type: "bonobo:token-refresh-request",
-						protocolVersion: PROTOCOL_VERSION,
 						bridgeNonce,
 						requestId,
 					},
@@ -168,8 +155,9 @@ async function bonobo_ui_connect() {
 				body: has_body ? JSON.stringify(init.body) : void 0,
 			});
 		};
-		let response = await send(await getToken());
-		if (response.status === 401) response = await send(await refreshToken());
+		const firstBearer = await getToken();
+		let response = await send(firstBearer);
+		if (response.status === 401) response = await send(token !== firstBearer ? token : await refreshToken());
 		if (!response.ok) {
 			const responseText = await response.text();
 			throw Object.assign(/* @__PURE__ */ new Error(`${path} responded ${response.status}: ${responseText}`), {
@@ -179,33 +167,26 @@ async function bonobo_ui_connect() {
 		}
 		return response.json();
 	}
-	return new Promise((resolve, reject) => {
+	return new Promise((resolve) => {
 		let initialized = false;
-		let readyAttempts = 0;
 		/** @type {ReturnType<typeof setInterval> | undefined} */
 		let readyInterval;
-		/** @type {ReturnType<typeof setTimeout> | undefined} */
-		let connectionDeadline;
 		const post_ready = () => {
-			readyAttempts += 1;
-			window.parent.postMessage(
-				{
-					type: "bonobo:ready",
-					protocolVersion: PROTOCOL_VERSION,
-					bridgeNonce,
-				},
-				parentOrigin,
-			);
+			window.parent.postMessage({ type: "bonobo:ready" }, "*");
+		};
+		const stop_ready = () => {
+			clearInterval(readyInterval);
 		};
 		/** @param {MessageEvent} event */
 		const handle_message = (event) => {
-			if (event.origin !== parentOrigin || event.source !== window.parent) return;
+			if (event.source !== window.parent) return;
 			const message = event.data;
 			if (typeof message !== "object" || message === null) return;
-			if (message.protocolVersion !== PROTOCOL_VERSION || message.bridgeNonce !== bridgeNonce) return;
 			if (
 				message.type === "bonobo:init" &&
 				!initialized &&
+				typeof message.bridgeNonce === "string" &&
+				message.bridgeNonce.length > 0 &&
 				typeof message.apiOrigin === "string" &&
 				typeof message.token === "string" &&
 				typeof message.tokenExpiresAt === "number" &&
@@ -213,8 +194,10 @@ async function bonobo_ui_connect() {
 				is_page_context(message.context)
 			) {
 				initialized = true;
-				clearInterval(readyInterval);
-				clearTimeout(connectionDeadline);
+				stop_ready();
+				window.removeEventListener("pagehide", stop_ready);
+				parentOrigin = event.origin;
+				bridgeNonce = message.bridgeNonce;
 				apiOrigin = message.apiOrigin;
 				token = message.token;
 				tokenExpiresAt = message.tokenExpiresAt;
@@ -226,6 +209,9 @@ async function bonobo_ui_connect() {
 					fetchJson,
 				});
 			} else if (
+				initialized &&
+				event.origin === parentOrigin &&
+				message.bridgeNonce === bridgeNonce &&
 				message.type === "bonobo:token" &&
 				typeof message.requestId === "string" &&
 				typeof message.token === "string" &&
@@ -241,6 +227,9 @@ async function bonobo_ui_connect() {
 					pending.resolve(message.token);
 				}
 			} else if (
+				initialized &&
+				event.origin === parentOrigin &&
+				message.bridgeNonce === bridgeNonce &&
 				message.type === "bonobo:token-error" &&
 				typeof message.requestId === "string" &&
 				typeof message.message === "string"
@@ -254,19 +243,9 @@ async function bonobo_ui_connect() {
 			}
 		};
 		window.addEventListener("message", handle_message);
+		window.addEventListener("pagehide", stop_ready, { once: true });
 		post_ready();
-		readyInterval = setInterval(() => {
-			if (readyAttempts >= READY_ATTEMPTS) {
-				clearInterval(readyInterval);
-				return;
-			}
-			post_ready();
-		}, READY_RETRY_MS);
-		connectionDeadline = setTimeout(() => {
-			clearInterval(readyInterval);
-			window.removeEventListener("message", handle_message);
-			reject(/* @__PURE__ */ new Error("Plugin page connection timed out"));
-		}, CONNECTION_DEADLINE_MS);
+		readyInterval = setInterval(post_ready, READY_RETRY_MS);
 	});
 }
 //#endregion
