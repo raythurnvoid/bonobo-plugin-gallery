@@ -33,32 +33,48 @@ var __commonJSMin = (cb, mod) => () => (mod || (cb((mod = { exports: {} }).expor
 	}
 })();
 //#endregion
-//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_9b350a714125c7282060ab2a10145365/node_modules/bonobo-plugin-sdk/frontend.js
+//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_753255337dcfd61c1160f3a0efb1e975/node_modules/bonobo-plugin-sdk/frontend.js
 /**
  * Bonobo plugin frontend bridge — hand-written browser ESM, no dependencies, no build step.
  *
- * Runs inside the host app's sandboxed plugin-page iframe (`sandbox="allow-scripts"`, so the
- * document has an opaque origin) and talks to the embedding host app over the current strict
- * postMessage contract: the page announces `bonobo:ready`, the host answers `bonobo:init` with a
- * short-lived scoped bearer token, and from then on the client calls the public `/api/v1/*` API
- * on `apiOrigin` directly with `Authorization: Bearer <token>`.
+ * Runs inside the host app's sandboxed plugin iframe (`sandbox="allow-scripts"`, so the document
+ * has an opaque origin) for plugin pages and plugin file views alike, and talks to the embedding
+ * host app over the current strict postMessage contract: the page announces `bonobo:ready`, the
+ * host answers `bonobo:init` with a short-lived scoped bearer token, and from then on the client
+ * calls the public `/api/v1/*` API on `apiOrigin` directly with `Authorization: Bearer <token>`.
  */
 /** `getToken` refreshes when the token is expired or expires within this margin. */
 var TOKEN_EXPIRY_MARGIN_MS = 6e4;
 var READY_RETRY_MS = 500;
 var REFRESH_DEADLINE_MS = 1e4;
 var BRIDGE_NONCE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-/** @param {unknown} value */
-function is_page_context(value) {
+/**
+ * Validates the `bonobo:init` context union: `kind: "page"` or `kind: "file_view"`.
+ *
+ * @param {unknown} value
+ */
+function is_ui_context(value) {
 	if (typeof value !== "object" || value === null) return false;
 	const context = value;
-	return (
-		typeof context.pluginName === "string" &&
-		typeof context.pageId === "string" &&
-		typeof context.pageTitle === "string" &&
-		typeof context.organizationId === "string" &&
-		typeof context.workspaceId === "string"
-	);
+	if (
+		typeof context.pluginName !== "string" ||
+		typeof context.organizationId !== "string" ||
+		typeof context.workspaceId !== "string"
+	)
+		return false;
+	if (context.kind === "page") return typeof context.pageId === "string" && typeof context.pageTitle === "string";
+	if (context.kind === "file_view") {
+		if (typeof context.fileViewId !== "string" || typeof context.fileViewTitle !== "string") return false;
+		if (typeof context.file !== "object" || context.file === null) return false;
+		const file = context.file;
+		return (
+			typeof file.fileNodeId === "string" &&
+			typeof file.name === "string" &&
+			typeof file.path === "string" &&
+			typeof file.contentType === "string"
+		);
+	}
+	return false;
 }
 /**
  * Reads the host origin and frame nonce from the URL fragment. The fragment is available to the
@@ -227,7 +243,7 @@ async function bonobo_ui_connect() {
 				typeof message.token === "string" &&
 				typeof message.tokenExpiresAt === "number" &&
 				Number.isFinite(message.tokenExpiresAt) &&
-				is_page_context(message.context)
+				is_ui_context(message.context)
 			) {
 				initialized = true;
 				stop_ready();
@@ -14892,7 +14908,7 @@ var root = (0, import_client.createRoot)(container);
 root.render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(BootScreen, { message: "Connecting…" }));
 bonobo_ui_connect().then(
 	(client) => {
-		document.title = client.context.pageTitle;
+		if (client.context.kind === "page") document.title = client.context.pageTitle;
 		root.render(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(App, { client }));
 	},
 	(error) => {

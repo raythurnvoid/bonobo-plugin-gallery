@@ -25,7 +25,10 @@ root.render(<BootScreen message="Connecting…" />);
 
 bonobo_ui_connect().then(
 	(client) => {
-		document.title = client.context.pageTitle;
+		// The context is a union since SDK 0.6.0; the gallery is only embedded as a page.
+		if (client.context.kind === "page") {
+			document.title = client.context.pageTitle;
+		}
 		root.render(<App client={client} />);
 	},
 	(error: unknown) => {
