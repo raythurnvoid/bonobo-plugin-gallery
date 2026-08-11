@@ -47,6 +47,7 @@ test("sparse workspace: one click follows the cursor with wide file-only pages, 
 	expect(fetchJson.mock.calls[0][1].body).toEqual({
 		recursive: true,
 		limit: LIST_SCAN_LIMIT,
+		scanLimit: 10_000,
 		cursor: null,
 		kind: "file",
 		contentTypePrefixes: ["image/", "video/"],

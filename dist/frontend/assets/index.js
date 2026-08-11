@@ -2141,6 +2141,7 @@ async function fetch_json_with_429_retry(client, path, body) {
 			throw error;
 		}
 }
+var LIST_SCAN_MAX_ROWS_READ = 1e4;
 /** Prefixes the server filters each page by; only media files come back. */
 var MEDIA_CONTENT_TYPE_PREFIXES = ["image/", "video/"];
 function create_list_scan(client) {
@@ -2157,6 +2158,7 @@ function create_list_scan(client) {
 					const page = await fetch_json_with_429_retry(client, "/api/v1/files/list", {
 						recursive: true,
 						limit: 100,
+						scanLimit: LIST_SCAN_MAX_ROWS_READ,
 						cursor,
 						kind: "file",
 						contentTypePrefixes: MEDIA_CONTENT_TYPE_PREFIXES,

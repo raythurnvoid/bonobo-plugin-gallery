@@ -8,6 +8,9 @@ export const PAGE_SIZE = 12;
  * than PAGE_SIZE so dense media pages buffer overflow for the next user action.
  */
 export const LIST_SCAN_LIMIT = 100;
+// Ask the generic file API to scan its largest bounded number of source files.
+const LIST_SCAN_MAX_ROWS_READ = 10_000;
+
 /**
  * Source pages one "Load more" may successfully advance before it stops and keeps the
  * cursor for the next click. 429 retries do not consume the budget.
@@ -66,6 +69,7 @@ export function create_list_scan(client: BonoboUiFrontendClient): ListScan {
 					const page = (await fetch_json_with_429_retry(client, "/api/v1/files/list", {
 						recursive: true,
 						limit: LIST_SCAN_LIMIT,
+						scanLimit: LIST_SCAN_MAX_ROWS_READ,
 						cursor,
 						kind: "file",
 						contentTypePrefixes: MEDIA_CONTENT_TYPE_PREFIXES,
