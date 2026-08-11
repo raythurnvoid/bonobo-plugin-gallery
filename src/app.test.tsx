@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
 import type { BonoboUiFrontendClient } from "bonobo-plugin-sdk/frontend";
 import { afterEach, expect, test, vi } from "vitest";
 import { App, FileDetail, GalleryTile } from "./app";
@@ -89,8 +89,8 @@ test("grid tiles from one page coalesce into a single batched download-urls call
 		for (const name of ["a1.png", "a2.png", "a3.png"]) {
 			expect(screen.getByRole("link", { name })).toBeTruthy();
 		}
+		expect(download_urls_bodies).toEqual([["a1", "a2", "a3"]]);
 	});
-	expect(download_urls_bodies).toEqual([["a1", "a2", "a3"]]);
 });
 
 test("a rejected initial thumbnail request shows the failed placeholder with a working Retry", async () => {

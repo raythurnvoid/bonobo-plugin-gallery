@@ -4,10 +4,8 @@ import { fetch_json_with_429_retry, get_error_message } from "./retry";
 /** Gallery page size: each "Load more" exposes at most this many new tiles. */
 export const PAGE_SIZE = 12;
 /**
- * Files scanned per list request (the server clamps to its own max). Much larger than
- * PAGE_SIZE because the server post-filters by contentTypePrefixes over an unfiltered
- * scan: sparse-media trees would otherwise need one request per 12 files and trip the
- * per-route rate limit before a single gallery page fills.
+ * Files returned per list request (the server clamps to its own max). Keep this larger
+ * than PAGE_SIZE so dense media pages buffer overflow for the next user action.
  */
 export const LIST_SCAN_LIMIT = 100;
 /**
@@ -59,8 +57,8 @@ export function create_list_scan(client: BonoboUiFrontendClient): ListScan {
 		async load_next() {
 			const items = pending_items.splice(0, PAGE_SIZE);
 			let error_message: string | null = null;
-			// The server post-filters each page by contentTypePrefixes, so a page may come
-			// back short or even empty while isDone is still false — keep following the
+			// The server bounds how many source files one content-type scan reads, so a page
+			// may come back short or even empty while isDone is still false. Keep following the
 			// cursor until a full gallery page accumulates, the listing completes, or the
 			// page budget runs out.
 			try {

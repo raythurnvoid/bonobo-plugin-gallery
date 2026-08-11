@@ -26,8 +26,7 @@ afterEach(() => {
 });
 
 test("sparse workspace: one click follows the cursor with wide file-only pages, no excessive requests", async () => {
-	// 600-file workspace, 100 files per source page, 2 media survive the server's
-	// post-filter on each page: one click should need exactly 6 requests.
+	// Six short filtered pages, 2 media in total: one click should need exactly 6 requests.
 	let pages_served = 0;
 	const fetchJson = vi.fn(async (_path: string, _init: { body: Record<string, unknown> }) => {
 		pages_served += 1;
