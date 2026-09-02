@@ -1,4 +1,4 @@
-import type { BonoboUiFrontendClient } from "bonobo-plugin-sdk/frontend";
+import type { BonoboClient } from "bonobo-plugin-sdk/frontend";
 
 /** Back-off delays after a 429, one per retry. */
 const RETRY_429_DELAYS_MS = [3_000, 6_000];
@@ -24,7 +24,7 @@ export function get_error_message(error: unknown): string {
  * exact same body (including any cursor) after 3s, then 6s, then the error propagates.
  */
 export async function fetch_json_with_429_retry(
-	client: BonoboUiFrontendClient,
+	client: BonoboClient,
 	path: string,
 	body: unknown,
 ): Promise<unknown> {

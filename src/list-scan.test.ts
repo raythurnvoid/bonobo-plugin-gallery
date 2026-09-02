@@ -1,4 +1,4 @@
-import type { BonoboUiFrontendClient } from "bonobo-plugin-sdk/frontend";
+import type { BonoboClient } from "bonobo-plugin-sdk/frontend";
 import { afterEach, expect, test, vi } from "vitest";
 import { create_list_scan, LIST_PAGE_BUDGET, LIST_SCAN_LIMIT, PAGE_SIZE, type FilesListItem } from "./list-scan";
 
@@ -17,8 +17,8 @@ function media_items(count: number, prefix: string): FilesListItem[] {
 	return Array.from({ length: count }, (_, index) => media_item(`${prefix}${index}`));
 }
 
-function make_client(fetchJson: unknown): BonoboUiFrontendClient {
-	return { fetchJson } as unknown as BonoboUiFrontendClient;
+function make_client(fetchJson: unknown): BonoboClient {
+	return { fetchJson } as unknown as BonoboClient;
 }
 
 afterEach(() => {

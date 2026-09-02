@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/preact";
-import type { BonoboUiFrontendClient } from "bonobo-plugin-sdk/frontend";
+import type { BonoboClient } from "bonobo-plugin-sdk/frontend";
 import { afterEach, expect, test, vi } from "vitest";
 import { App, FileDetail, GalleryTile } from "./app";
 import { LIST_PAGE_BUDGET, type FilesListItem } from "./list-scan";
@@ -16,8 +16,8 @@ function media_item(nodeId: string): FilesListItem {
 	};
 }
 
-function make_client(fetchJson: unknown): BonoboUiFrontendClient {
-	return { fetchJson } as unknown as BonoboUiFrontendClient;
+function make_client(fetchJson: unknown): BonoboClient {
+	return { fetchJson } as unknown as BonoboClient;
 }
 
 afterEach(cleanup);

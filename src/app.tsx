@@ -1,4 +1,4 @@
-import type { BonoboUiFrontendClient } from "bonobo-plugin-sdk/frontend";
+import type { BonoboClient } from "bonobo-plugin-sdk/frontend";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { create_list_scan, type FilesListItem } from "./list-scan";
 import { create_media_url_manager, type MediaUrl, type MediaUrlManager } from "./media-urls";
@@ -14,7 +14,7 @@ function parse_route(hash: string): Route {
 	return { view: "grid" };
 }
 
-export function App(props: { client: BonoboUiFrontendClient }) {
+export function App(props: { client: BonoboClient }) {
 	const media = useMemo(() => create_media_url_manager(props.client), [props.client]);
 	const scan = useMemo(() => create_list_scan(props.client), [props.client]);
 	const [route, setRoute] = useState<Route>(() => parse_route(window.location.hash));

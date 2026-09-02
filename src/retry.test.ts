@@ -1,9 +1,9 @@
-import type { BonoboUiFrontendClient } from "bonobo-plugin-sdk/frontend";
+import type { BonoboClient } from "bonobo-plugin-sdk/frontend";
 import { afterEach, expect, test, vi } from "vitest";
 import { fetch_json_with_429_retry } from "./retry";
 
-function make_client(fetchJson: unknown): BonoboUiFrontendClient {
-	return { fetchJson } as unknown as BonoboUiFrontendClient;
+function make_client(fetchJson: unknown): BonoboClient {
+	return { fetchJson } as unknown as BonoboClient;
 }
 
 function rate_limited(): Error {

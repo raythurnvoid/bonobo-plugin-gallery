@@ -1,4 +1,4 @@
-import { bonobo_ui_connect } from "bonobo-plugin-sdk/frontend";
+import { bonobo_connect } from "bonobo-plugin-sdk/frontend";
 import { createRoot } from "react-dom/client";
 import { App } from "./app";
 import "./gallery.css";
@@ -23,7 +23,7 @@ if (!container) {
 const root = createRoot(container);
 root.render(<BootScreen message="Connecting…" />);
 
-bonobo_ui_connect().then(
+bonobo_connect().then(
 	(client) => {
 		// The context is a union since SDK 0.6.0; the gallery is only embedded as a page.
 		if (client.context.kind === "page") {

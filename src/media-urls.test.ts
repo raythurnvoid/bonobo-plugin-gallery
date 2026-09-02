@@ -1,4 +1,4 @@
-import type { BonoboUiFrontendClient } from "bonobo-plugin-sdk/frontend";
+import type { BonoboClient } from "bonobo-plugin-sdk/frontend";
 import { afterEach, expect, test, vi } from "vitest";
 import { create_media_url_manager, MAX_CONCURRENT_URL_REQUESTS, MAX_URL_BATCH_IDS } from "./media-urls";
 
@@ -51,7 +51,7 @@ function make_manager() {
 		calls.push({ path, body: init.body, gate });
 		return gate.promise;
 	});
-	const media = create_media_url_manager({ fetchJson } as unknown as BonoboUiFrontendClient);
+	const media = create_media_url_manager({ fetchJson } as unknown as BonoboClient);
 	return { media, fetchJson, calls };
 }
 
@@ -192,7 +192,7 @@ test("initial batches and renewals share one four-slot pool", async () => {
 			active_requests -= 1;
 		});
 	});
-	const media = create_media_url_manager({ fetchJson } as unknown as BonoboUiFrontendClient);
+	const media = create_media_url_manager({ fetchJson } as unknown as BonoboClient);
 
 	const initial = media.get_url("initial");
 	const renewals = ["r1", "r2", "r3", "r4", "r5"].map((nodeId) => media.get_fresh_url(nodeId));

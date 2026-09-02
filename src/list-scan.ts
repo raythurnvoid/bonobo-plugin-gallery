@@ -1,4 +1,4 @@
-import type { BonoboUiFrontendClient } from "bonobo-plugin-sdk/frontend";
+import type { BonoboClient } from "bonobo-plugin-sdk/frontend";
 import { fetch_json_with_429_retry, get_error_message } from "./retry";
 
 /** Gallery page size: each "Load more" exposes at most this many new tiles. */
@@ -48,7 +48,7 @@ export type ListScan = {
 	has_more(): boolean;
 };
 
-export function create_list_scan(client: BonoboUiFrontendClient): ListScan {
+export function create_list_scan(client: BonoboClient): ListScan {
 	let cursor: string | null = null;
 	let source_is_done = false;
 	const pending_items: FilesListItem[] = [];

@@ -1,4 +1,4 @@
-import type { BonoboUiFrontendClient } from "bonobo-plugin-sdk/frontend";
+import type { BonoboClient } from "bonobo-plugin-sdk/frontend";
 import { fetch_json_with_429_retry } from "./retry";
 
 /** Signed URLs are re-requested when they are this close to `expiresAt`. */
@@ -39,7 +39,7 @@ export type MediaUrlManager = {
 	get_fresh_url(nodeId: string): Promise<MediaUrl>;
 };
 
-export function create_media_url_manager(client: BonoboUiFrontendClient): MediaUrlManager {
+export function create_media_url_manager(client: BonoboClient): MediaUrlManager {
 	const cache = new Map<string, MediaUrl>();
 	const pending = new Map<string, Promise<MediaUrl>>();
 	const waiters: Array<() => void> = [];
