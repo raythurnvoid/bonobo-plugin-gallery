@@ -30,21 +30,3849 @@
 	}
 })();
 //#endregion
-//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_753255337dcfd61c1160f3a0efb1e975/node_modules/bonobo-plugin-sdk/frontend.js
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/index.js
+var version = "1.45.0";
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/values/base64.js
+var lookup = [];
+var revLookup = [];
+var Arr = Uint8Array;
+var code = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+for (var i = 0, len = code.length; i < len; ++i) {
+	lookup[i] = code[i];
+	revLookup[code.charCodeAt(i)] = i;
+}
+revLookup["-".charCodeAt(0)] = 62;
+revLookup["_".charCodeAt(0)] = 63;
+function getLens(b64) {
+	var len = b64.length;
+	if (len % 4 > 0) throw new Error("Invalid string. Length must be a multiple of 4");
+	var validLen = b64.indexOf("=");
+	if (validLen === -1) validLen = len;
+	var placeHoldersLen = validLen === len ? 0 : 4 - (validLen % 4);
+	return [validLen, placeHoldersLen];
+}
+function _byteLength(_b64, validLen, placeHoldersLen) {
+	return ((validLen + placeHoldersLen) * 3) / 4 - placeHoldersLen;
+}
+function toByteArray(b64) {
+	var tmp;
+	var lens = getLens(b64);
+	var validLen = lens[0];
+	var placeHoldersLen = lens[1];
+	var arr = new Arr(_byteLength(b64, validLen, placeHoldersLen));
+	var curByte = 0;
+	var len = placeHoldersLen > 0 ? validLen - 4 : validLen;
+	var i;
+	for (i = 0; i < len; i += 4) {
+		tmp =
+			(revLookup[b64.charCodeAt(i)] << 18) |
+			(revLookup[b64.charCodeAt(i + 1)] << 12) |
+			(revLookup[b64.charCodeAt(i + 2)] << 6) |
+			revLookup[b64.charCodeAt(i + 3)];
+		arr[curByte++] = (tmp >> 16) & 255;
+		arr[curByte++] = (tmp >> 8) & 255;
+		arr[curByte++] = tmp & 255;
+	}
+	if (placeHoldersLen === 2) {
+		tmp = (revLookup[b64.charCodeAt(i)] << 2) | (revLookup[b64.charCodeAt(i + 1)] >> 4);
+		arr[curByte++] = tmp & 255;
+	}
+	if (placeHoldersLen === 1) {
+		tmp =
+			(revLookup[b64.charCodeAt(i)] << 10) |
+			(revLookup[b64.charCodeAt(i + 1)] << 4) |
+			(revLookup[b64.charCodeAt(i + 2)] >> 2);
+		arr[curByte++] = (tmp >> 8) & 255;
+		arr[curByte++] = tmp & 255;
+	}
+	return arr;
+}
+function tripletToBase64(num) {
+	return lookup[(num >> 18) & 63] + lookup[(num >> 12) & 63] + lookup[(num >> 6) & 63] + lookup[num & 63];
+}
+function encodeChunk(uint8, start, end) {
+	var tmp;
+	var output = [];
+	for (var i = start; i < end; i += 3) {
+		tmp = ((uint8[i] << 16) & 16711680) + ((uint8[i + 1] << 8) & 65280) + (uint8[i + 2] & 255);
+		output.push(tripletToBase64(tmp));
+	}
+	return output.join("");
+}
+function fromByteArray(uint8) {
+	var tmp;
+	var len = uint8.length;
+	var extraBytes = len % 3;
+	var parts = [];
+	var maxChunkLength = 16383;
+	for (var i = 0, len2 = len - extraBytes; i < len2; i += maxChunkLength)
+		parts.push(encodeChunk(uint8, i, i + maxChunkLength > len2 ? len2 : i + maxChunkLength));
+	if (extraBytes === 1) {
+		tmp = uint8[len - 1];
+		parts.push(lookup[tmp >> 2] + lookup[(tmp << 4) & 63] + "==");
+	} else if (extraBytes === 2) {
+		tmp = (uint8[len - 2] << 8) + uint8[len - 1];
+		parts.push(lookup[tmp >> 10] + lookup[(tmp >> 4) & 63] + lookup[(tmp << 2) & 63] + "=");
+	}
+	return parts.join("");
+}
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/common/index.js
+function parseArgs(args) {
+	if (args === void 0) return {};
+	if (!isSimpleObject(args)) throw new Error(`The arguments to a Convex function must be an object. Received: ${args}`);
+	return args;
+}
+function validateDeploymentUrl(deploymentUrl) {
+	if (typeof deploymentUrl === "undefined")
+		throw new Error(
+			`Client created with undefined deployment address. If you used an environment variable, check that it's set.`,
+		);
+	if (typeof deploymentUrl !== "string") throw new Error(`Invalid deployment address: found ${deploymentUrl}".`);
+	if (!(deploymentUrl.startsWith("http:") || deploymentUrl.startsWith("https:")))
+		throw new Error(`Invalid deployment address: Must start with "https://" or "http://". Found "${deploymentUrl}".`);
+	try {
+		new URL(deploymentUrl);
+	} catch {
+		throw new Error(
+			`Invalid deployment address: "${deploymentUrl}" is not a valid URL. If you believe this URL is correct, use the \`skipConvexDeploymentUrlCheck\` option to bypass this.`,
+		);
+	}
+	if (deploymentUrl.endsWith(".convex.site"))
+		throw new Error(
+			`Invalid deployment address: "${deploymentUrl}" ends with .convex.site, which is used for HTTP Actions. Convex deployment URLs typically end with .convex.cloud? If you believe this URL is correct, use the \`skipConvexDeploymentUrlCheck\` option to bypass this.`,
+		);
+}
+function isSimpleObject(value) {
+	const isObject = typeof value === "object";
+	const prototype = Object.getPrototypeOf(value);
+	const isSimple = prototype === null || prototype === Object.prototype || prototype?.constructor?.name === "Object";
+	return isObject && isSimple;
+}
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/values/value.js
+var LITTLE_ENDIAN = true;
+var MIN_INT64 = BigInt("-9223372036854775808");
+var MAX_INT64 = BigInt("9223372036854775807");
+var ZERO = BigInt("0");
+var EIGHT = BigInt("8");
+var TWOFIFTYSIX = BigInt("256");
+var COMMIT_TS_UNRESOLVED =
+	"This commit timestamp is unresolved: its value is assigned when the mutation commits. Read the document after the mutation completes to get its value.";
+var CommitTsPlaceholder = class {
+	[Symbol.toPrimitive](hint) {
+		if (hint === "string") return this.toString();
+		throw new Error(COMMIT_TS_UNRESOLVED);
+	}
+	valueOf() {
+		throw new Error(COMMIT_TS_UNRESOLVED);
+	}
+	toJSON() {
+		throw new Error(COMMIT_TS_UNRESOLVED);
+	}
+	toString() {
+		return "[unresolved commit timestamp]";
+	}
+};
+var commitTsPlaceholder = new CommitTsPlaceholder();
+function isSpecial(n) {
+	return Number.isNaN(n) || !Number.isFinite(n) || Object.is(n, -0);
+}
+function slowBigIntToBase64(value) {
+	if (value < ZERO) value -= MIN_INT64 + MIN_INT64;
+	let hex = value.toString(16);
+	if (hex.length % 2 === 1) hex = "0" + hex;
+	const bytes = new Uint8Array(/* @__PURE__ */ new ArrayBuffer(8));
+	let i = 0;
+	for (const hexByte of hex.match(/.{2}/g).reverse()) {
+		bytes.set([parseInt(hexByte, 16)], i++);
+		value >>= EIGHT;
+	}
+	return fromByteArray(bytes);
+}
+function slowBase64ToBigInt(encoded) {
+	const integerBytes = toByteArray(encoded);
+	if (integerBytes.byteLength !== 8)
+		throw new Error(`Received ${integerBytes.byteLength} bytes, expected 8 for $integer`);
+	let value = ZERO;
+	let power = ZERO;
+	for (const byte of integerBytes) {
+		value += BigInt(byte) * TWOFIFTYSIX ** power;
+		power++;
+	}
+	if (value > MAX_INT64) value += MIN_INT64 + MIN_INT64;
+	return value;
+}
+function modernBigIntToBase64(value) {
+	if (value < MIN_INT64 || MAX_INT64 < value)
+		throw new Error(`BigInt ${value} does not fit into a 64-bit signed integer.`);
+	const buffer = /* @__PURE__ */ new ArrayBuffer(8);
+	new DataView(buffer).setBigInt64(0, value, true);
+	return fromByteArray(new Uint8Array(buffer));
+}
+function modernBase64ToBigInt(encoded) {
+	const integerBytes = toByteArray(encoded);
+	if (integerBytes.byteLength !== 8)
+		throw new Error(`Received ${integerBytes.byteLength} bytes, expected 8 for $integer`);
+	return new DataView(integerBytes.buffer).getBigInt64(0, true);
+}
+var bigIntToBase64 = DataView.prototype.setBigInt64 ? modernBigIntToBase64 : slowBigIntToBase64;
+var base64ToBigInt = DataView.prototype.getBigInt64 ? modernBase64ToBigInt : slowBase64ToBigInt;
+var MAX_IDENTIFIER_LEN = 1024;
+function validateObjectField(k) {
+	if (k.length > MAX_IDENTIFIER_LEN)
+		throw new Error(`Field name ${k} exceeds maximum field name length ${MAX_IDENTIFIER_LEN}.`);
+	if (k.startsWith("$")) throw new Error(`Field name ${k} starts with a '$', which is reserved.`);
+	for (let i = 0; i < k.length; i += 1) {
+		const charCode = k.charCodeAt(i);
+		if (charCode < 32 || charCode >= 127)
+			throw new Error(
+				`Field name ${k} has invalid character '${k[i]}': Field names can only contain non-control ASCII characters`,
+			);
+	}
+}
+function jsonToConvex(value) {
+	if (value === null) return value;
+	if (typeof value === "boolean") return value;
+	if (typeof value === "number") return value;
+	if (typeof value === "string") return value;
+	if (Array.isArray(value)) return value.map((value2) => jsonToConvex(value2));
+	if (typeof value !== "object") throw new Error(`Unexpected type of ${value}`);
+	const entries = Object.entries(value);
+	if (entries.length === 1) {
+		const key = entries[0][0];
+		if (key === "$bytes") {
+			if (typeof value.$bytes !== "string") throw new Error(`Malformed $bytes field on ${value}`);
+			return toByteArray(value.$bytes).buffer;
+		}
+		if (key === "$integer") {
+			if (typeof value.$integer !== "string") throw new Error(`Malformed $integer field on ${value}`);
+			return base64ToBigInt(value.$integer);
+		}
+		if (key === "$float") {
+			if (typeof value.$float !== "string") throw new Error(`Malformed $float field on ${value}`);
+			const floatBytes = toByteArray(value.$float);
+			if (floatBytes.byteLength !== 8)
+				throw new Error(`Received ${floatBytes.byteLength} bytes, expected 8 for $float`);
+			const float = new DataView(floatBytes.buffer).getFloat64(0, LITTLE_ENDIAN);
+			if (!isSpecial(float)) throw new Error(`Float ${float} should be encoded as a number`);
+			return float;
+		}
+		if (key === "$commitTs") {
+			if (value.$commitTs !== null) throw new Error(`Malformed $commitTs field on ${value}`);
+			return commitTsPlaceholder;
+		}
+		if (key === "$set") throw new Error(`Received a Set which is no longer supported as a Convex type.`);
+		if (key === "$map") throw new Error(`Received a Map which is no longer supported as a Convex type.`);
+	}
+	const out = {};
+	for (const [k, v] of Object.entries(value)) {
+		validateObjectField(k);
+		out[k] = jsonToConvex(v);
+	}
+	return out;
+}
+var MAX_VALUE_FOR_ERROR_LEN = 16384;
+function stringifyValueForError(value) {
+	const str = JSON.stringify(value, (_key, value2) => {
+		if (value2 === void 0) return "undefined";
+		if (typeof value2 === "bigint") return `${value2.toString()}n`;
+		return value2;
+	});
+	if (str.length > MAX_VALUE_FOR_ERROR_LEN) {
+		const rest = "[...truncated]";
+		let truncateAt = MAX_VALUE_FOR_ERROR_LEN - 14;
+		const codePoint = str.codePointAt(truncateAt - 1);
+		if (codePoint !== void 0 && codePoint > 65535) truncateAt -= 1;
+		return str.substring(0, truncateAt) + rest;
+	}
+	return str;
+}
+function convexToJsonInternal(value, originalValue, context, includeTopLevelUndefined) {
+	if (value === void 0) {
+		const contextText =
+			context && ` (present at path ${context} in original object ${stringifyValueForError(originalValue)})`;
+		throw new Error(
+			`undefined is not a valid Convex value${contextText}. To learn about Convex's supported types, see https://docs.convex.dev/using/types.`,
+		);
+	}
+	if (value === null) return value;
+	if (typeof value === "bigint") {
+		if (value < MIN_INT64 || MAX_INT64 < value)
+			throw new Error(`BigInt ${value} does not fit into a 64-bit signed integer.`);
+		return { $integer: bigIntToBase64(value) };
+	}
+	if (typeof value === "number")
+		if (isSpecial(value)) {
+			const buffer = /* @__PURE__ */ new ArrayBuffer(8);
+			new DataView(buffer).setFloat64(0, value, LITTLE_ENDIAN);
+			return { $float: fromByteArray(new Uint8Array(buffer)) };
+		} else return value;
+	if (typeof value === "boolean") return value;
+	if (typeof value === "string") return value;
+	if (value instanceof ArrayBuffer) return { $bytes: fromByteArray(new Uint8Array(value)) };
+	if (value instanceof CommitTsPlaceholder) return { $commitTs: null };
+	if (Array.isArray(value))
+		return value.map((value2, i) => convexToJsonInternal(value2, originalValue, context + `[${i}]`, false));
+	if (value instanceof Set) throw new Error(errorMessageForUnsupportedType(context, "Set", [...value], originalValue));
+	if (value instanceof Map) throw new Error(errorMessageForUnsupportedType(context, "Map", [...value], originalValue));
+	if (!isSimpleObject(value)) {
+		const theType = value?.constructor?.name;
+		const typeName = theType ? `${theType} ` : "";
+		throw new Error(errorMessageForUnsupportedType(context, typeName, value, originalValue));
+	}
+	const out = {};
+	const entries = Object.entries(value);
+	entries.sort(([k1, _v1], [k2, _v2]) => (k1 === k2 ? 0 : k1 < k2 ? -1 : 1));
+	for (const [k, v] of entries)
+		if (v !== void 0) {
+			validateObjectField(k);
+			out[k] = convexToJsonInternal(v, originalValue, context + `.${k}`, false);
+		} else if (includeTopLevelUndefined) {
+			validateObjectField(k);
+			out[k] = convexOrUndefinedToJsonInternal(v, originalValue, context + `.${k}`);
+		}
+	return out;
+}
+function errorMessageForUnsupportedType(context, typeName, value, originalValue) {
+	if (context)
+		return `${typeName}${stringifyValueForError(value)} is not a supported Convex type (present at path ${context} in original object ${stringifyValueForError(originalValue)}). To learn about Convex's supported types, see https://docs.convex.dev/using/types.`;
+	else return `${typeName}${stringifyValueForError(value)} is not a supported Convex type.`;
+}
+function convexOrUndefinedToJsonInternal(value, originalValue, context) {
+	if (value === void 0) return { $undefined: null };
+	else {
+		if (originalValue === void 0)
+			throw new Error(
+				`Programming error. Current value is ${stringifyValueForError(value)} but original value is undefined`,
+			);
+		return convexToJsonInternal(value, originalValue, context, false);
+	}
+}
+function convexToJson(value) {
+	return convexToJsonInternal(value, value, "", false);
+}
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/values/errors.js
+var __defProp$11 = Object.defineProperty;
+var __defNormalProp$11 = (obj, key, value) =>
+	key in obj
+		? __defProp$11(obj, key, {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value,
+			})
+		: (obj[key] = value);
+var __publicField$11 = (obj, key, value) => __defNormalProp$11(obj, typeof key !== "symbol" ? key + "" : key, value);
+var _a;
+var _b;
+var IDENTIFYING_FIELD = Symbol.for("ConvexError");
+var ConvexError = class extends ((_b = Error), (_a = IDENTIFYING_FIELD), _b) {
+	constructor(data) {
+		super(typeof data === "string" ? data : stringifyValueForError(data));
+		__publicField$11(this, "name", "ConvexError");
+		__publicField$11(this, "data");
+		__publicField$11(this, _a, true);
+		this.data = data;
+	}
+};
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/logging.js
+var __defProp$10 = Object.defineProperty;
+var __defNormalProp$10 = (obj, key, value) =>
+	key in obj
+		? __defProp$10(obj, key, {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value,
+			})
+		: (obj[key] = value);
+var __publicField$10 = (obj, key, value) => __defNormalProp$10(obj, typeof key !== "symbol" ? key + "" : key, value);
+var INFO_COLOR = "color:rgb(0, 145, 255)";
+function prefix_for_source(source) {
+	switch (source) {
+		case "query":
+			return "Q";
+		case "mutation":
+			return "M";
+		case "action":
+			return "A";
+		case "any":
+			return "?";
+	}
+}
+var DefaultLogger = class {
+	constructor(options) {
+		__publicField$10(this, "_onLogLineFuncs");
+		__publicField$10(this, "_verbose");
+		this._onLogLineFuncs = {};
+		this._verbose = options.verbose;
+	}
+	addLogLineListener(func) {
+		let id = Math.random().toString(36).substring(2, 15);
+		for (let i = 0; i < 10; i++) {
+			if (this._onLogLineFuncs[id] === void 0) break;
+			id = Math.random().toString(36).substring(2, 15);
+		}
+		this._onLogLineFuncs[id] = func;
+		return () => {
+			delete this._onLogLineFuncs[id];
+		};
+	}
+	logVerbose(...args) {
+		if (this._verbose)
+			for (const func of Object.values(this._onLogLineFuncs))
+				func("debug", `${/* @__PURE__ */ new Date().toISOString()}`, ...args);
+	}
+	log(...args) {
+		for (const func of Object.values(this._onLogLineFuncs)) func("info", ...args);
+	}
+	warn(...args) {
+		for (const func of Object.values(this._onLogLineFuncs)) func("warn", ...args);
+	}
+	error(...args) {
+		for (const func of Object.values(this._onLogLineFuncs)) func("error", ...args);
+	}
+};
+function instantiateDefaultLogger(options) {
+	const logger = new DefaultLogger(options);
+	logger.addLogLineListener((level, ...args) => {
+		switch (level) {
+			case "debug":
+				console.debug(...args);
+				break;
+			case "info":
+				console.log(...args);
+				break;
+			case "warn":
+				console.warn(...args);
+				break;
+			case "error":
+				console.error(...args);
+				break;
+			default:
+				console.log(...args);
+		}
+	});
+	return logger;
+}
+function instantiateNoopLogger(options) {
+	return new DefaultLogger(options);
+}
+function logForFunction(logger, type, source, udfPath, message) {
+	const prefix = prefix_for_source(source);
+	if (typeof message === "object") message = `ConvexError ${JSON.stringify(message.errorData, null, 2)}`;
+	if (type === "info") {
+		const match = message.match(/^\[.*?\] /);
+		if (match === null) {
+			logger.error(`[CONVEX ${prefix}(${udfPath})] Could not parse console.log`);
+			return;
+		}
+		const level = message.slice(1, match[0].length - 2);
+		const args = message.slice(match[0].length);
+		logger.log(`%c[CONVEX ${prefix}(${udfPath})] [${level}]`, INFO_COLOR, args);
+	} else logger.error(`[CONVEX ${prefix}(${udfPath})] ${message}`);
+}
+function logFatalError(logger, message) {
+	const errorMessage = `[CONVEX FATAL ERROR] ${message}`;
+	logger.error(errorMessage);
+	return new Error(errorMessage);
+}
+function createHybridErrorStacktrace(source, udfPath, result) {
+	return `[CONVEX ${prefix_for_source(source)}(${udfPath})] ${result.errorMessage}
+  Called by client`;
+}
+function forwardData(result, error) {
+	error.data = result.errorData;
+	return error;
+}
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/sync/udf_path_utils.js
+function canonicalizeUdfPath(udfPath) {
+	const pieces = udfPath.split(":");
+	let moduleName;
+	let functionName;
+	if (pieces.length === 1) {
+		moduleName = pieces[0];
+		functionName = "default";
+	} else {
+		moduleName = pieces.slice(0, pieces.length - 1).join(":");
+		functionName = pieces[pieces.length - 1];
+	}
+	if (moduleName.endsWith(".js")) moduleName = moduleName.slice(0, -3);
+	return `${moduleName}:${functionName}`;
+}
+function serializePathAndArgs(udfPath, args) {
+	return JSON.stringify({
+		udfPath: canonicalizeUdfPath(udfPath),
+		args: convexToJson(args),
+	});
+}
+function serializePaginatedPathAndArgs(udfPath, args, options) {
+	const { initialNumItems, id } = options;
+	return JSON.stringify({
+		type: "paginated",
+		udfPath: canonicalizeUdfPath(udfPath),
+		args: convexToJson(args),
+		options: convexToJson({
+			initialNumItems,
+			id,
+		}),
+	});
+}
+function serializedQueryTokenIsPaginated(token) {
+	return JSON.parse(token).type === "paginated";
+}
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/sync/local_state.js
+var __defProp$9 = Object.defineProperty;
+var __defNormalProp$9 = (obj, key, value) =>
+	key in obj
+		? __defProp$9(obj, key, {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value,
+			})
+		: (obj[key] = value);
+var __publicField$9 = (obj, key, value) => __defNormalProp$9(obj, typeof key !== "symbol" ? key + "" : key, value);
+var LocalSyncState = class {
+	constructor() {
+		__publicField$9(this, "nextQueryId");
+		__publicField$9(this, "querySetVersion");
+		__publicField$9(this, "querySet");
+		__publicField$9(this, "queryIdToToken");
+		__publicField$9(this, "identityVersion");
+		__publicField$9(this, "auth");
+		__publicField$9(this, "outstandingQueriesOlderThanRestart");
+		__publicField$9(this, "outstandingAuthOlderThanRestart");
+		__publicField$9(this, "paused");
+		__publicField$9(this, "pendingQuerySetModifications");
+		this.nextQueryId = 0;
+		this.querySetVersion = 0;
+		this.identityVersion = 0;
+		this.querySet = /* @__PURE__ */ new Map();
+		this.queryIdToToken = /* @__PURE__ */ new Map();
+		this.outstandingQueriesOlderThanRestart = /* @__PURE__ */ new Set();
+		this.outstandingAuthOlderThanRestart = false;
+		this.paused = false;
+		this.pendingQuerySetModifications = /* @__PURE__ */ new Map();
+	}
+	hasSyncedPastLastReconnect() {
+		return this.outstandingQueriesOlderThanRestart.size === 0 && !this.outstandingAuthOlderThanRestart;
+	}
+	markAuthCompletion() {
+		this.outstandingAuthOlderThanRestart = false;
+	}
+	subscribe(udfPath, args, journal, componentPath) {
+		const canonicalizedUdfPath = canonicalizeUdfPath(udfPath);
+		const queryToken = serializePathAndArgs(canonicalizedUdfPath, args);
+		const existingEntry = this.querySet.get(queryToken);
+		if (existingEntry !== void 0) {
+			existingEntry.numSubscribers += 1;
+			return {
+				queryToken,
+				modification: null,
+				unsubscribe: () => this.removeSubscriber(queryToken),
+			};
+		} else {
+			const queryId = this.nextQueryId++;
+			const query = {
+				id: queryId,
+				canonicalizedUdfPath,
+				args,
+				numSubscribers: 1,
+				journal,
+				componentPath,
+			};
+			this.querySet.set(queryToken, query);
+			this.queryIdToToken.set(queryId, queryToken);
+			const baseVersion = this.querySetVersion;
+			const newVersion = this.querySetVersion + 1;
+			const add = {
+				type: "Add",
+				queryId,
+				udfPath: canonicalizedUdfPath,
+				args: [convexToJson(args)],
+				journal,
+				componentPath,
+			};
+			if (this.paused) this.pendingQuerySetModifications.set(queryId, add);
+			else this.querySetVersion = newVersion;
+			return {
+				queryToken,
+				modification: {
+					type: "ModifyQuerySet",
+					baseVersion,
+					newVersion,
+					modifications: [add],
+				},
+				unsubscribe: () => this.removeSubscriber(queryToken),
+			};
+		}
+	}
+	transition(transition) {
+		for (const modification of transition.modifications)
+			switch (modification.type) {
+				case "QueryUpdated":
+				case "QueryFailed": {
+					this.outstandingQueriesOlderThanRestart.delete(modification.queryId);
+					const journal = modification.journal;
+					if (journal !== void 0) {
+						const queryToken = this.queryIdToToken.get(modification.queryId);
+						if (queryToken !== void 0) this.querySet.get(queryToken).journal = journal;
+					}
+					break;
+				}
+				case "QueryRemoved":
+					this.outstandingQueriesOlderThanRestart.delete(modification.queryId);
+					break;
+				default:
+					throw new Error(`Invalid modification ${modification.type}`);
+			}
+	}
+	queryId(udfPath, args) {
+		const queryToken = serializePathAndArgs(canonicalizeUdfPath(udfPath), args);
+		const existingEntry = this.querySet.get(queryToken);
+		if (existingEntry !== void 0) return existingEntry.id;
+		return null;
+	}
+	isCurrentOrNewerAuthVersion(version) {
+		return version >= this.identityVersion;
+	}
+	getAuth() {
+		return this.auth;
+	}
+	setAuth(value) {
+		this.auth = {
+			tokenType: "User",
+			value,
+		};
+		const baseVersion = this.identityVersion;
+		if (!this.paused) this.identityVersion = baseVersion + 1;
+		return {
+			type: "Authenticate",
+			baseVersion,
+			...this.auth,
+		};
+	}
+	setAdminAuth(value, actingAs) {
+		const auth = {
+			tokenType: "Admin",
+			value,
+			impersonating: actingAs,
+		};
+		this.auth = auth;
+		const baseVersion = this.identityVersion;
+		if (!this.paused) this.identityVersion = baseVersion + 1;
+		return {
+			type: "Authenticate",
+			baseVersion,
+			...auth,
+		};
+	}
+	clearAuth() {
+		this.auth = void 0;
+		this.markAuthCompletion();
+		const baseVersion = this.identityVersion;
+		if (!this.paused) this.identityVersion = baseVersion + 1;
+		return {
+			type: "Authenticate",
+			tokenType: "None",
+			baseVersion,
+		};
+	}
+	hasAuth() {
+		return !!this.auth;
+	}
+	isNewAuth(value) {
+		return this.auth?.value !== value;
+	}
+	queryPath(queryId) {
+		const pathAndArgs = this.queryIdToToken.get(queryId);
+		if (pathAndArgs) return this.querySet.get(pathAndArgs).canonicalizedUdfPath;
+		return null;
+	}
+	queryArgs(queryId) {
+		const pathAndArgs = this.queryIdToToken.get(queryId);
+		if (pathAndArgs) return this.querySet.get(pathAndArgs).args;
+		return null;
+	}
+	queryToken(queryId) {
+		return this.queryIdToToken.get(queryId) ?? null;
+	}
+	queryJournal(queryToken) {
+		return this.querySet.get(queryToken)?.journal;
+	}
+	restart() {
+		this.unpause();
+		this.outstandingQueriesOlderThanRestart.clear();
+		const modifications = [];
+		for (const localQuery of this.querySet.values()) {
+			const add = {
+				type: "Add",
+				queryId: localQuery.id,
+				udfPath: localQuery.canonicalizedUdfPath,
+				args: [convexToJson(localQuery.args)],
+				journal: localQuery.journal,
+				componentPath: localQuery.componentPath,
+			};
+			modifications.push(add);
+			this.outstandingQueriesOlderThanRestart.add(localQuery.id);
+		}
+		this.querySetVersion = 1;
+		const querySet = {
+			type: "ModifyQuerySet",
+			baseVersion: 0,
+			newVersion: 1,
+			modifications,
+		};
+		if (!this.auth) {
+			this.identityVersion = 0;
+			return [querySet, void 0];
+		}
+		this.outstandingAuthOlderThanRestart = true;
+		const authenticate = {
+			type: "Authenticate",
+			baseVersion: 0,
+			...this.auth,
+		};
+		this.identityVersion = 1;
+		return [querySet, authenticate];
+	}
+	pause() {
+		this.paused = true;
+	}
+	resume() {
+		const querySet =
+			this.pendingQuerySetModifications.size > 0
+				? {
+						type: "ModifyQuerySet",
+						baseVersion: this.querySetVersion,
+						newVersion: ++this.querySetVersion,
+						modifications: Array.from(this.pendingQuerySetModifications.values()),
+					}
+				: void 0;
+		const authenticate =
+			this.auth !== void 0
+				? {
+						type: "Authenticate",
+						baseVersion: this.identityVersion++,
+						...this.auth,
+					}
+				: void 0;
+		this.unpause();
+		return [querySet, authenticate];
+	}
+	unpause() {
+		this.paused = false;
+		this.pendingQuerySetModifications.clear();
+	}
+	removeSubscriber(queryToken) {
+		const localQuery = this.querySet.get(queryToken);
+		if (localQuery.numSubscribers > 1) {
+			localQuery.numSubscribers -= 1;
+			return null;
+		} else {
+			this.querySet.delete(queryToken);
+			this.queryIdToToken.delete(localQuery.id);
+			this.outstandingQueriesOlderThanRestart.delete(localQuery.id);
+			const baseVersion = this.querySetVersion;
+			const newVersion = this.querySetVersion + 1;
+			const remove = {
+				type: "Remove",
+				queryId: localQuery.id,
+			};
+			if (this.paused)
+				if (this.pendingQuerySetModifications.has(localQuery.id))
+					this.pendingQuerySetModifications.delete(localQuery.id);
+				else this.pendingQuerySetModifications.set(localQuery.id, remove);
+			else this.querySetVersion = newVersion;
+			return {
+				type: "ModifyQuerySet",
+				baseVersion,
+				newVersion,
+				modifications: [remove],
+			};
+		}
+	}
+};
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/sync/request_manager.js
+var __defProp$8 = Object.defineProperty;
+var __defNormalProp$8 = (obj, key, value) =>
+	key in obj
+		? __defProp$8(obj, key, {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value,
+			})
+		: (obj[key] = value);
+var __publicField$8 = (obj, key, value) => __defNormalProp$8(obj, typeof key !== "symbol" ? key + "" : key, value);
+var RequestManager = class {
+	constructor(logger, markConnectionStateDirty) {
+		this.logger = logger;
+		this.markConnectionStateDirty = markConnectionStateDirty;
+		__publicField$8(this, "inflightRequests");
+		__publicField$8(this, "requestsOlderThanRestart");
+		__publicField$8(this, "inflightMutationsCount", 0);
+		__publicField$8(this, "inflightActionsCount", 0);
+		this.inflightRequests = /* @__PURE__ */ new Map();
+		this.requestsOlderThanRestart = /* @__PURE__ */ new Set();
+	}
+	request(message, sent) {
+		const result = new Promise((resolve) => {
+			const status = sent ? "Requested" : "NotSent";
+			this.inflightRequests.set(message.requestId, {
+				message,
+				status: {
+					status,
+					requestedAt: /* @__PURE__ */ new Date(),
+					onResult: resolve,
+				},
+			});
+			if (message.type === "Mutation") this.inflightMutationsCount++;
+			else if (message.type === "Action") this.inflightActionsCount++;
+		});
+		this.markConnectionStateDirty();
+		return result;
+	}
+	/**
+	 * Update the state after receiving a response.
+	 *
+	 * @returns A RequestId if the request is complete and its optimistic update
+	 * can be dropped, null otherwise.
+	 */
+	onResponse(response) {
+		const requestInfo = this.inflightRequests.get(response.requestId);
+		if (requestInfo === void 0) return null;
+		if (requestInfo.status.status === "Completed") return null;
+		const udfType = requestInfo.message.type === "Mutation" ? "mutation" : "action";
+		const udfPath = requestInfo.message.udfPath;
+		for (const line of response.logLines) logForFunction(this.logger, "info", udfType, udfPath, line);
+		const status = requestInfo.status;
+		let result;
+		let onResolve;
+		if (response.success) {
+			result = {
+				success: true,
+				logLines: response.logLines,
+				value: jsonToConvex(response.result),
+			};
+			onResolve = () => status.onResult(result);
+		} else {
+			const errorMessage = response.result;
+			const { errorData } = response;
+			logForFunction(this.logger, "error", udfType, udfPath, errorMessage);
+			result = {
+				success: false,
+				errorMessage,
+				errorData: errorData !== void 0 ? jsonToConvex(errorData) : void 0,
+				logLines: response.logLines,
+			};
+			onResolve = () => status.onResult(result);
+		}
+		if (response.type === "ActionResponse" || !response.success) {
+			onResolve();
+			this.inflightRequests.delete(response.requestId);
+			this.requestsOlderThanRestart.delete(response.requestId);
+			if (requestInfo.message.type === "Action") this.inflightActionsCount--;
+			else if (requestInfo.message.type === "Mutation") this.inflightMutationsCount--;
+			this.markConnectionStateDirty();
+			return {
+				requestId: response.requestId,
+				result,
+			};
+		}
+		requestInfo.status = {
+			status: "Completed",
+			result,
+			ts: response.ts,
+			onResolve,
+		};
+		return null;
+	}
+	removeCompleted(ts) {
+		const completeRequests = /* @__PURE__ */ new Map();
+		for (const [requestId, requestInfo] of this.inflightRequests.entries()) {
+			const status = requestInfo.status;
+			if (status.status === "Completed" && status.ts.lessThanOrEqual(ts)) {
+				status.onResolve();
+				completeRequests.set(requestId, status.result);
+				if (requestInfo.message.type === "Mutation") this.inflightMutationsCount--;
+				else if (requestInfo.message.type === "Action") this.inflightActionsCount--;
+				this.inflightRequests.delete(requestId);
+				this.requestsOlderThanRestart.delete(requestId);
+			}
+		}
+		if (completeRequests.size > 0) this.markConnectionStateDirty();
+		return completeRequests;
+	}
+	restart() {
+		this.requestsOlderThanRestart = new Set(this.inflightRequests.keys());
+		const allMessages = [];
+		for (const [requestId, value] of this.inflightRequests) {
+			if (value.status.status === "NotSent") {
+				value.status.status = "Requested";
+				allMessages.push(value.message);
+				continue;
+			}
+			if (value.message.type === "Mutation") allMessages.push(value.message);
+			else if (value.message.type === "Action") {
+				this.inflightRequests.delete(requestId);
+				this.requestsOlderThanRestart.delete(requestId);
+				this.inflightActionsCount--;
+				if (value.status.status === "Completed") throw new Error("Action should never be in 'Completed' state");
+				value.status.onResult({
+					success: false,
+					errorMessage: "Connection lost while action was in flight",
+					logLines: [],
+				});
+			}
+		}
+		this.markConnectionStateDirty();
+		return allMessages;
+	}
+	resume() {
+		const allMessages = [];
+		for (const [, value] of this.inflightRequests)
+			if (value.status.status === "NotSent") {
+				value.status.status = "Requested";
+				allMessages.push(value.message);
+				continue;
+			}
+		return allMessages;
+	}
+	/**
+	 * @returns true if there are any requests that have been requested but have
+	 * not be completed yet.
+	 */
+	hasIncompleteRequests() {
+		for (const requestInfo of this.inflightRequests.values())
+			if (requestInfo.status.status === "Requested") return true;
+		return false;
+	}
+	/**
+	 * @returns true if there are any inflight requests, including ones that have
+	 * completed on the server, but have not been applied.
+	 */
+	hasInflightRequests() {
+		return this.inflightRequests.size > 0;
+	}
+	/**
+	 * @returns true if there are any inflight requests, that have been hanging around
+	 * since prior to the most recent restart.
+	 */
+	hasSyncedPastLastReconnect() {
+		return this.requestsOlderThanRestart.size === 0;
+	}
+	timeOfOldestInflightRequest() {
+		if (this.inflightRequests.size === 0) return null;
+		let oldestInflightRequest = Date.now();
+		for (const request of this.inflightRequests.values())
+			if (request.status.status !== "Completed") {
+				if (request.status.requestedAt.getTime() < oldestInflightRequest)
+					oldestInflightRequest = request.status.requestedAt.getTime();
+			}
+		return new Date(oldestInflightRequest);
+	}
+	/**
+	 * @returns The number of mutations currently in flight.
+	 */
+	inflightMutations() {
+		return this.inflightMutationsCount;
+	}
+	/**
+	 * @returns The number of actions currently in flight.
+	 */
+	inflightActions() {
+		return this.inflightActionsCount;
+	}
+};
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/server/functionName.js
+var functionName = Symbol.for("functionName");
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/server/components/paths.js
+var toReferencePath = Symbol.for("toReferencePath");
+function extractReferencePath(reference) {
+	return reference[toReferencePath] ?? null;
+}
+function isFunctionHandle(s) {
+	return s.startsWith("function://");
+}
+function getFunctionAddress(functionReference) {
+	let functionAddress;
+	if (typeof functionReference === "string")
+		if (isFunctionHandle(functionReference)) functionAddress = { functionHandle: functionReference };
+		else functionAddress = { name: functionReference };
+	else if (functionReference[functionName]) functionAddress = { name: functionReference[functionName] };
+	else {
+		const referencePath = extractReferencePath(functionReference);
+		if (!referencePath) throw new Error(`${functionReference} is not a functionReference`);
+		functionAddress = { reference: referencePath };
+	}
+	return functionAddress;
+}
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/server/api.js
+function getFunctionName(functionReference) {
+	const address = getFunctionAddress(functionReference);
+	if (address.name === void 0) {
+		if (address.functionHandle !== void 0)
+			throw new Error(
+				`Expected function reference like "api.file.func" or "internal.file.func", but received function handle ${address.functionHandle}`,
+			);
+		else if (address.reference !== void 0)
+			throw new Error(
+				`Expected function reference in the current component like "api.file.func" or "internal.file.func", but received reference ${address.reference}`,
+			);
+		throw new Error(
+			`Expected function reference like "api.file.func" or "internal.file.func", but received ${JSON.stringify(address)}`,
+		);
+	}
+	if (typeof functionReference === "string") return functionReference;
+	const name = functionReference[functionName];
+	if (!name) throw new Error(`${functionReference} is not a functionReference`);
+	return name;
+}
+function createApi(pathParts = []) {
+	return new Proxy(
+		{},
+		{
+			get(_, prop) {
+				if (typeof prop === "string") return createApi([...pathParts, prop]);
+				else if (prop === functionName) {
+					if (pathParts.length < 2) {
+						const found = ["api", ...pathParts].join(".");
+						throw new Error(
+							`API path is expected to be of the form \`api.moduleName.functionName\`. Found: \`${found}\``,
+						);
+					}
+					const path = pathParts.slice(0, -1).join("/");
+					const exportName = pathParts[pathParts.length - 1];
+					if (exportName === "default") return path;
+					else return path + ":" + exportName;
+				} else if (prop === Symbol.toStringTag) return "FunctionReference";
+				else return;
+			},
+		},
+	);
+}
+var anyApi = createApi();
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/sync/optimistic_updates_impl.js
+var __defProp$7 = Object.defineProperty;
+var __defNormalProp$7 = (obj, key, value) =>
+	key in obj
+		? __defProp$7(obj, key, {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value,
+			})
+		: (obj[key] = value);
+var __publicField$7 = (obj, key, value) => __defNormalProp$7(obj, typeof key !== "symbol" ? key + "" : key, value);
+var OptimisticLocalStoreImpl = class OptimisticLocalStoreImpl {
+	constructor(queryResults) {
+		__publicField$7(this, "queryResults");
+		__publicField$7(this, "modifiedQueries");
+		this.queryResults = queryResults;
+		this.modifiedQueries = [];
+	}
+	getQuery(query, ...args) {
+		const queryArgs = parseArgs(args[0]);
+		const name = getFunctionName(query);
+		const queryResult = this.queryResults.get(serializePathAndArgs(name, queryArgs));
+		if (queryResult === void 0) return;
+		return OptimisticLocalStoreImpl.queryValue(queryResult.result);
+	}
+	getAllQueries(query) {
+		const queriesWithName = [];
+		const name = getFunctionName(query);
+		for (const queryResult of this.queryResults.values())
+			if (queryResult.udfPath === canonicalizeUdfPath(name))
+				queriesWithName.push({
+					args: queryResult.args,
+					value: OptimisticLocalStoreImpl.queryValue(queryResult.result),
+				});
+		return queriesWithName;
+	}
+	setQuery(queryReference, args, value) {
+		const queryArgs = parseArgs(args);
+		const name = getFunctionName(queryReference);
+		const queryToken = serializePathAndArgs(name, queryArgs);
+		let result;
+		if (value === void 0) result = void 0;
+		else
+			result = {
+				success: true,
+				value,
+				logLines: [],
+			};
+		const query = {
+			udfPath: name,
+			args: queryArgs,
+			result,
+		};
+		this.queryResults.set(queryToken, query);
+		this.modifiedQueries.push(queryToken);
+	}
+	static queryValue(result) {
+		if (result === void 0) return;
+		else if (result.success) return result.value;
+		else return;
+	}
+};
+var OptimisticQueryResults = class {
+	constructor() {
+		__publicField$7(this, "queryResults");
+		__publicField$7(this, "optimisticUpdates");
+		this.queryResults = /* @__PURE__ */ new Map();
+		this.optimisticUpdates = [];
+	}
+	/**
+	 * Apply all optimistic updates on top of server query results
+	 */
+	ingestQueryResultsFromServer(serverQueryResults, optimisticUpdatesToDrop) {
+		this.optimisticUpdates = this.optimisticUpdates.filter((updateAndId) => {
+			return !optimisticUpdatesToDrop.has(updateAndId.mutationId);
+		});
+		const oldQueryResults = this.queryResults;
+		this.queryResults = new Map(serverQueryResults);
+		const localStore = new OptimisticLocalStoreImpl(this.queryResults);
+		for (const updateAndId of this.optimisticUpdates) updateAndId.update(localStore);
+		const changedQueries = [];
+		for (const [queryToken, query] of this.queryResults) {
+			const oldQuery = oldQueryResults.get(queryToken);
+			if (oldQuery === void 0 || oldQuery.result !== query.result) changedQueries.push(queryToken);
+		}
+		return changedQueries;
+	}
+	applyOptimisticUpdate(update, mutationId) {
+		this.optimisticUpdates.push({
+			update,
+			mutationId,
+		});
+		const localStore = new OptimisticLocalStoreImpl(this.queryResults);
+		update(localStore);
+		return localStore.modifiedQueries;
+	}
+	/**
+	 * "Raw" with respect to errors vs values, but query results still have
+	 * optimistic updates applied.
+	 *
+	 * @internal
+	 */
+	rawQueryResult(queryToken) {
+		const query = this.queryResults.get(queryToken);
+		if (query === void 0) return;
+		return query.result;
+	}
+	queryResult(queryToken) {
+		const query = this.queryResults.get(queryToken);
+		if (query === void 0) return;
+		const result = query.result;
+		if (result === void 0) return;
+		else if (result.success) return result.value;
+		else {
+			if (result.errorData !== void 0)
+				throw forwardData(result, new ConvexError(createHybridErrorStacktrace("query", query.udfPath, result)));
+			throw new Error(createHybridErrorStacktrace("query", query.udfPath, result));
+		}
+	}
+	hasQueryResult(queryToken) {
+		return this.queryResults.get(queryToken) !== void 0;
+	}
+	/**
+	 * @internal
+	 */
+	queryLogs(queryToken) {
+		return this.queryResults.get(queryToken)?.result?.logLines;
+	}
+};
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/vendor/long.js
+var __defProp$6 = Object.defineProperty;
+var __defNormalProp$6 = (obj, key, value) =>
+	key in obj
+		? __defProp$6(obj, key, {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value,
+			})
+		: (obj[key] = value);
+var __publicField$6 = (obj, key, value) => __defNormalProp$6(obj, typeof key !== "symbol" ? key + "" : key, value);
+var Long = class Long {
+	constructor(low, high) {
+		__publicField$6(this, "low");
+		__publicField$6(this, "high");
+		__publicField$6(this, "__isUnsignedLong__");
+		this.low = low | 0;
+		this.high = high | 0;
+		this.__isUnsignedLong__ = true;
+	}
+	static isLong(obj) {
+		return (obj && obj.__isUnsignedLong__) === true;
+	}
+	static fromBytesLE(bytes) {
+		return new Long(
+			bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24),
+			bytes[4] | (bytes[5] << 8) | (bytes[6] << 16) | (bytes[7] << 24),
+		);
+	}
+	toBytesLE() {
+		const hi = this.high;
+		const lo = this.low;
+		return [
+			lo & 255,
+			(lo >>> 8) & 255,
+			(lo >>> 16) & 255,
+			lo >>> 24,
+			hi & 255,
+			(hi >>> 8) & 255,
+			(hi >>> 16) & 255,
+			hi >>> 24,
+		];
+	}
+	static fromNumber(value) {
+		if (isNaN(value)) return UZERO;
+		if (value < 0) return UZERO;
+		if (value >= TWO_PWR_64_DBL) return MAX_UNSIGNED_VALUE;
+		return new Long((value % TWO_PWR_32_DBL) | 0, (value / TWO_PWR_32_DBL) | 0);
+	}
+	toString() {
+		return (BigInt(this.high) * BigInt(TWO_PWR_32_DBL) + BigInt(this.low)).toString();
+	}
+	equals(other) {
+		if (!Long.isLong(other)) other = Long.fromValue(other);
+		if (this.high >>> 31 === 1 && other.high >>> 31 === 1) return false;
+		return this.high === other.high && this.low === other.low;
+	}
+	notEquals(other) {
+		return !this.equals(other);
+	}
+	comp(other) {
+		if (!Long.isLong(other)) other = Long.fromValue(other);
+		if (this.equals(other)) return 0;
+		return other.high >>> 0 > this.high >>> 0 || (other.high === this.high && other.low >>> 0 > this.low >>> 0)
+			? -1
+			: 1;
+	}
+	lessThanOrEqual(other) {
+		return this.comp(other) <= 0;
+	}
+	static fromValue(val) {
+		if (typeof val === "number") return Long.fromNumber(val);
+		return new Long(val.low, val.high);
+	}
+};
+var UZERO = new Long(0, 0);
+var TWO_PWR_16_DBL = 65536;
+var TWO_PWR_32_DBL = TWO_PWR_16_DBL * TWO_PWR_16_DBL;
+var TWO_PWR_64_DBL = TWO_PWR_32_DBL * TWO_PWR_32_DBL;
+var MAX_UNSIGNED_VALUE = new Long(-1, -1);
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/sync/remote_query_set.js
+var __defProp$5 = Object.defineProperty;
+var __defNormalProp$5 = (obj, key, value) =>
+	key in obj
+		? __defProp$5(obj, key, {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value,
+			})
+		: (obj[key] = value);
+var __publicField$5 = (obj, key, value) => __defNormalProp$5(obj, typeof key !== "symbol" ? key + "" : key, value);
+var RemoteQuerySet = class {
+	constructor(queryPath, logger) {
+		__publicField$5(this, "version");
+		__publicField$5(this, "remoteQuerySet");
+		__publicField$5(this, "queryPath");
+		__publicField$5(this, "logger");
+		this.version = {
+			querySet: 0,
+			ts: Long.fromNumber(0),
+			identity: 0,
+		};
+		this.remoteQuerySet = /* @__PURE__ */ new Map();
+		this.queryPath = queryPath;
+		this.logger = logger;
+	}
+	transition(transition) {
+		const start = transition.startVersion;
+		if (
+			this.version.querySet !== start.querySet ||
+			this.version.ts.notEquals(start.ts) ||
+			this.version.identity !== start.identity
+		)
+			throw new Error(
+				`Invalid start version: ${start.ts.toString()}:${start.querySet}:${start.identity}, transitioning from ${this.version.ts.toString()}:${this.version.querySet}:${this.version.identity}`,
+			);
+		for (const modification of transition.modifications)
+			switch (modification.type) {
+				case "QueryUpdated": {
+					const queryPath = this.queryPath(modification.queryId);
+					if (queryPath)
+						for (const line of modification.logLines) logForFunction(this.logger, "info", "query", queryPath, line);
+					const value = jsonToConvex(modification.value ?? null);
+					this.remoteQuerySet.set(modification.queryId, {
+						success: true,
+						value,
+						logLines: modification.logLines,
+					});
+					break;
+				}
+				case "QueryFailed": {
+					const queryPath = this.queryPath(modification.queryId);
+					if (queryPath)
+						for (const line of modification.logLines) logForFunction(this.logger, "info", "query", queryPath, line);
+					const { errorData } = modification;
+					this.remoteQuerySet.set(modification.queryId, {
+						success: false,
+						errorMessage: modification.errorMessage,
+						errorData: errorData !== void 0 ? jsonToConvex(errorData) : void 0,
+						logLines: modification.logLines,
+					});
+					break;
+				}
+				case "QueryRemoved":
+					this.remoteQuerySet.delete(modification.queryId);
+					break;
+				default:
+					throw new Error(`Invalid modification ${modification.type}`);
+			}
+		this.version = transition.endVersion;
+	}
+	remoteQueryResults() {
+		return this.remoteQuerySet;
+	}
+	timestamp() {
+		return this.version.ts;
+	}
+};
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/sync/protocol.js
+function u64ToLong(encoded) {
+	const integerBytes = toByteArray(encoded);
+	return Long.fromBytesLE(Array.from(integerBytes));
+}
+function longToU64(raw) {
+	return fromByteArray(new Uint8Array(raw.toBytesLE()));
+}
+function parseServerMessage(encoded) {
+	switch (encoded.type) {
+		case "FatalError":
+		case "AuthError":
+		case "ActionResponse":
+		case "TransitionChunk":
+		case "Ping":
+			return { ...encoded };
+		case "MutationResponse":
+			if (encoded.success)
+				return {
+					...encoded,
+					ts: u64ToLong(encoded.ts),
+				};
+			else return { ...encoded };
+		case "Transition":
+			return {
+				...encoded,
+				startVersion: {
+					...encoded.startVersion,
+					ts: u64ToLong(encoded.startVersion.ts),
+				},
+				endVersion: {
+					...encoded.endVersion,
+					ts: u64ToLong(encoded.endVersion.ts),
+				},
+			};
+		default:
+	}
+}
+function encodeClientMessage(message) {
+	switch (message.type) {
+		case "Authenticate":
+		case "ModifyQuerySet":
+		case "Mutation":
+		case "Action":
+		case "Event":
+			return { ...message };
+		case "Connect":
+			if (message.maxObservedTimestamp !== void 0)
+				return {
+					...message,
+					maxObservedTimestamp: longToU64(message.maxObservedTimestamp),
+				};
+			else
+				return {
+					...message,
+					maxObservedTimestamp: void 0,
+				};
+		default:
+	}
+}
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/sync/web_socket_manager.js
+var __defProp$4 = Object.defineProperty;
+var __defNormalProp$4 = (obj, key, value) =>
+	key in obj
+		? __defProp$4(obj, key, {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value,
+			})
+		: (obj[key] = value);
+var __publicField$4 = (obj, key, value) => __defNormalProp$4(obj, typeof key !== "symbol" ? key + "" : key, value);
+var CLOSE_NORMAL = 1e3;
+var CLOSE_GOING_AWAY = 1001;
+var CLOSE_NO_STATUS = 1005;
+var CLOSE_NOT_FOUND = 4040;
+var firstTime;
+function monotonicMillis() {
+	if (firstTime === void 0) firstTime = Date.now();
+	if (typeof performance === "undefined" || !performance.now) return Date.now();
+	return Math.round(firstTime + performance.now());
+}
+function prettyNow() {
+	return `t=${Math.round((monotonicMillis() - firstTime) / 100) / 10}s`;
+}
+var serverDisconnectErrors = {
+	InternalServerError: { timeout: 1e3 },
+	SubscriptionsWorkerFullError: { timeout: 3e3 },
+	TooManyConcurrentRequests: { timeout: 3e3 },
+	CommitterFullError: { timeout: 3e3 },
+	AwsTooManyRequestsException: { timeout: 3e3 },
+	ExecuteFullError: { timeout: 3e3 },
+	SystemTimeoutError: { timeout: 3e3 },
+	ExpiredInQueue: { timeout: 3e3 },
+	VectorIndexesUnavailable: { timeout: 1e3 },
+	SearchIndexesUnavailable: { timeout: 1e3 },
+	TableSummariesUnavailable: { timeout: 1e3 },
+	VectorIndexTooLarge: { timeout: 3e3 },
+	SearchIndexTooLarge: { timeout: 3e3 },
+	TooManyWritesInTimePeriod: { timeout: 3e3 },
+};
+function classifyDisconnectError(s) {
+	if (s === void 0) return "Unknown";
+	for (const prefix of Object.keys(serverDisconnectErrors)) if (s.startsWith(prefix)) return prefix;
+	return "Unknown";
+}
+var WebSocketManager = class {
+	constructor(uri, callbacks, webSocketConstructor, logger, markConnectionStateDirty, debug) {
+		this.markConnectionStateDirty = markConnectionStateDirty;
+		this.debug = debug;
+		__publicField$4(this, "socket");
+		__publicField$4(this, "connectionCount");
+		__publicField$4(this, "_hasEverConnected", false);
+		__publicField$4(this, "lastCloseReason");
+		__publicField$4(this, "transitionChunkBuffer", null);
+		/** Upon HTTPS/WSS failure, the first jittered backoff duration, in ms. */
+		__publicField$4(this, "defaultInitialBackoff");
+		/** We backoff exponentially, but we need to cap that--this is the jittered max. */
+		__publicField$4(this, "maxBackoff");
+		/** How many times have we failed consecutively? */
+		__publicField$4(this, "retries");
+		/** How long before lack of server response causes us to initiate a reconnect,
+		 * in ms */
+		__publicField$4(this, "serverInactivityThreshold");
+		__publicField$4(this, "reconnectDueToServerInactivityTimeout");
+		/** Scheduled reconnect state: timeout handle and timing info */
+		__publicField$4(this, "scheduledReconnect", null);
+		__publicField$4(this, "networkOnlineHandler", null);
+		/** Pending event to send after reconnecting due to network recovery */
+		__publicField$4(this, "pendingNetworkRecoveryInfo", null);
+		__publicField$4(this, "uri");
+		__publicField$4(this, "onOpen");
+		__publicField$4(this, "onResume");
+		__publicField$4(this, "onMessage");
+		__publicField$4(this, "webSocketConstructor");
+		__publicField$4(this, "logger");
+		__publicField$4(this, "onServerDisconnectError");
+		this.webSocketConstructor = webSocketConstructor;
+		this.socket = { state: "disconnected" };
+		this.connectionCount = 0;
+		this.lastCloseReason = "InitialConnect";
+		this.defaultInitialBackoff = 1e3;
+		this.maxBackoff = 16e3;
+		this.retries = 0;
+		this.serverInactivityThreshold = 6e4;
+		this.reconnectDueToServerInactivityTimeout = null;
+		this.uri = uri;
+		this.onOpen = callbacks.onOpen;
+		this.onResume = callbacks.onResume;
+		this.onMessage = callbacks.onMessage;
+		this.onServerDisconnectError = callbacks.onServerDisconnectError;
+		this.logger = logger;
+		this.setupNetworkListener();
+		this.connect();
+	}
+	setSocketState(state) {
+		this.socket = state;
+		this._logVerbose(
+			`socket state changed: ${this.socket.state}, paused: ${"paused" in this.socket ? this.socket.paused : void 0}`,
+		);
+		this.markConnectionStateDirty();
+	}
+	setupNetworkListener() {
+		if (typeof window === "undefined" || typeof window.addEventListener !== "function") return;
+		if (this.networkOnlineHandler !== null) return;
+		this.networkOnlineHandler = () => {
+			this._logVerbose("network online event detected");
+			this.tryReconnectImmediately();
+		};
+		window.addEventListener("online", this.networkOnlineHandler);
+		this._logVerbose("network online event listener registered");
+	}
+	cleanupNetworkListener() {
+		if (
+			this.networkOnlineHandler &&
+			typeof window !== "undefined" &&
+			typeof window.removeEventListener === "function"
+		) {
+			window.removeEventListener("online", this.networkOnlineHandler);
+			this.networkOnlineHandler = null;
+			this._logVerbose("network online event listener removed");
+		}
+	}
+	assembleTransition(chunk) {
+		if (
+			chunk.partNumber < 0 ||
+			chunk.partNumber >= chunk.totalParts ||
+			chunk.totalParts === 0 ||
+			(this.transitionChunkBuffer &&
+				(this.transitionChunkBuffer.totalParts !== chunk.totalParts ||
+					this.transitionChunkBuffer.transitionId !== chunk.transitionId))
+		) {
+			this.transitionChunkBuffer = null;
+			throw new Error("Invalid TransitionChunk");
+		}
+		if (this.transitionChunkBuffer === null)
+			this.transitionChunkBuffer = {
+				chunks: [],
+				totalParts: chunk.totalParts,
+				transitionId: chunk.transitionId,
+			};
+		if (chunk.partNumber !== this.transitionChunkBuffer.chunks.length) {
+			const expectedLength = this.transitionChunkBuffer.chunks.length;
+			this.transitionChunkBuffer = null;
+			throw new Error(
+				`TransitionChunk received out of order: expected part ${expectedLength}, got ${chunk.partNumber}`,
+			);
+		}
+		this.transitionChunkBuffer.chunks.push(chunk.chunk);
+		if (this.transitionChunkBuffer.chunks.length === chunk.totalParts) {
+			const fullJson = this.transitionChunkBuffer.chunks.join("");
+			this.transitionChunkBuffer = null;
+			const transition = parseServerMessage(JSON.parse(fullJson));
+			if (transition.type !== "Transition")
+				throw new Error(`Expected Transition, got ${transition.type} after assembling chunks`);
+			return transition;
+		}
+		return null;
+	}
+	connect() {
+		if (this.socket.state === "terminated") return;
+		if (this.socket.state !== "disconnected" && this.socket.state !== "stopped")
+			throw new Error("Didn't start connection from disconnected state: " + this.socket.state);
+		const ws = new this.webSocketConstructor(this.uri);
+		this._logVerbose("constructed WebSocket");
+		this.setSocketState({
+			state: "connecting",
+			ws,
+			paused: "no",
+		});
+		this.resetServerInactivityTimeout();
+		ws.onopen = () => {
+			this.logger.logVerbose("begin ws.onopen");
+			if (this.socket.state !== "connecting") throw new Error("onopen called with socket not in connecting state");
+			this.setSocketState({
+				state: "ready",
+				ws,
+				paused: this.socket.paused === "yes" ? "uninitialized" : "no",
+			});
+			this.resetServerInactivityTimeout();
+			if (this.socket.paused === "no") {
+				this._hasEverConnected = true;
+				this.onOpen({
+					connectionCount: this.connectionCount,
+					lastCloseReason: this.lastCloseReason,
+					clientTs: monotonicMillis(),
+				});
+			}
+			if (this.lastCloseReason !== "InitialConnect")
+				if (this.lastCloseReason)
+					this.logger.log("WebSocket reconnected at", prettyNow(), "after disconnect due to", this.lastCloseReason);
+				else this.logger.log("WebSocket reconnected at", prettyNow());
+			this.connectionCount += 1;
+			this.lastCloseReason = null;
+			if (this.pendingNetworkRecoveryInfo !== null) {
+				const { timeSavedMs } = this.pendingNetworkRecoveryInfo;
+				this.pendingNetworkRecoveryInfo = null;
+				this.sendMessage({
+					type: "Event",
+					eventType: "NetworkRecoveryReconnect",
+					event: { timeSavedMs },
+				});
+				this.logger.log(`Network recovery reconnect saved ~${Math.round(timeSavedMs / 1e3)}s of waiting`);
+			}
+		};
+		ws.onerror = (error) => {
+			this.transitionChunkBuffer = null;
+			const message = error.message;
+			if (message) this.logger.log(`WebSocket error message: ${message}`);
+		};
+		ws.onmessage = (message) => {
+			this.resetServerInactivityTimeout();
+			const messageLength = message.data.length;
+			let serverMessage = parseServerMessage(JSON.parse(message.data));
+			this._logVerbose(`received ws message with type ${serverMessage.type}`);
+			if (serverMessage.type === "Ping") return;
+			if (serverMessage.type === "TransitionChunk") {
+				const transition = this.assembleTransition(serverMessage);
+				if (!transition) return;
+				serverMessage = transition;
+				this._logVerbose(`assembled full ws message of type ${serverMessage.type}`);
+			}
+			if (this.transitionChunkBuffer !== null) {
+				this.transitionChunkBuffer = null;
+				this.logger.log(`Received unexpected ${serverMessage.type} while buffering TransitionChunks`);
+			}
+			if (serverMessage.type === "Transition")
+				this.reportLargeTransition({
+					messageLength,
+					transition: serverMessage,
+				});
+			if (this.onMessage(serverMessage).hasSyncedPastLastReconnect) {
+				this.retries = 0;
+				this.markConnectionStateDirty();
+			}
+		};
+		ws.onclose = (event) => {
+			this._logVerbose("begin ws.onclose");
+			this.transitionChunkBuffer = null;
+			if (this.lastCloseReason === null) this.lastCloseReason = event.reason || `closed with code ${event.code}`;
+			if (
+				event.code !== CLOSE_NORMAL &&
+				event.code !== CLOSE_GOING_AWAY &&
+				event.code !== CLOSE_NO_STATUS &&
+				event.code !== CLOSE_NOT_FOUND
+			) {
+				let msg = `WebSocket closed with code ${event.code}`;
+				if (event.reason) msg += `: ${event.reason}`;
+				this.logger.log(msg);
+				if (this.onServerDisconnectError && event.reason) this.onServerDisconnectError(msg);
+			}
+			const reason = classifyDisconnectError(event.reason);
+			this.scheduleReconnect(reason);
+		};
+	}
+	/**
+	 * @returns The state of the {@link Socket}.
+	 */
+	socketState() {
+		return this.socket.state;
+	}
+	/**
+	 * @param message - A ClientMessage to send.
+	 * @returns Whether the message (might have been) sent.
+	 */
+	sendMessage(message) {
+		const messageForLog = {
+			type: message.type,
+			...(message.type === "Authenticate" && message.tokenType === "User"
+				? { value: `...${message.value.slice(-7)}` }
+				: {}),
+		};
+		if (this.socket.state === "ready" && this.socket.paused === "no") {
+			const encodedMessage = encodeClientMessage(message);
+			const request = JSON.stringify(encodedMessage);
+			let sent = false;
+			try {
+				this.socket.ws.send(request);
+				sent = true;
+			} catch (error) {
+				this.logger.log(`Failed to send message on WebSocket, reconnecting: ${error}`);
+				this.closeAndReconnect("FailedToSendMessage");
+			}
+			this._logVerbose(
+				`${sent ? "sent" : "failed to send"} message with type ${message.type}: ${JSON.stringify(messageForLog)}`,
+			);
+			return true;
+		}
+		this._logVerbose(
+			`message not sent (socket state: ${this.socket.state}, paused: ${"paused" in this.socket ? this.socket.paused : void 0}): ${JSON.stringify(messageForLog)}`,
+		);
+		return false;
+	}
+	resetServerInactivityTimeout() {
+		if (this.socket.state === "terminated") return;
+		if (this.reconnectDueToServerInactivityTimeout !== null) {
+			clearTimeout(this.reconnectDueToServerInactivityTimeout);
+			this.reconnectDueToServerInactivityTimeout = null;
+		}
+		this.reconnectDueToServerInactivityTimeout = setTimeout(() => {
+			this.closeAndReconnect("InactiveServer");
+		}, this.serverInactivityThreshold);
+	}
+	scheduleReconnect(reason) {
+		if (this.scheduledReconnect) {
+			clearTimeout(this.scheduledReconnect.timeout);
+			this.scheduledReconnect = null;
+		}
+		this.socket = { state: "disconnected" };
+		const backoff = this.nextBackoff(reason);
+		this.markConnectionStateDirty();
+		this.logger.log(`Attempting reconnect in ${Math.round(backoff)}ms`);
+		const scheduledAt = monotonicMillis();
+		const timeoutId = setTimeout(() => {
+			if (this.scheduledReconnect?.timeout === timeoutId) {
+				this.scheduledReconnect = null;
+				this.connect();
+			}
+		}, backoff);
+		this.scheduledReconnect = {
+			timeout: timeoutId,
+			scheduledAt,
+			backoffMs: backoff,
+		};
+	}
+	/**
+	 * Close the WebSocket and schedule a reconnect.
+	 *
+	 * This should be used when we hit an error and would like to restart the session.
+	 */
+	closeAndReconnect(closeReason) {
+		this._logVerbose(`begin closeAndReconnect with reason ${closeReason}`);
+		switch (this.socket.state) {
+			case "disconnected":
+			case "terminated":
+			case "stopped":
+				return;
+			case "connecting":
+			case "ready":
+				this.lastCloseReason = closeReason;
+				this.close();
+				this.scheduleReconnect("client");
+				return;
+			default:
+				this.socket;
+		}
+	}
+	/**
+	 * Close the WebSocket, being careful to clear the onclose handler to avoid re-entrant
+	 * calls. Use this instead of directly calling `ws.close()`
+	 *
+	 * It is the callers responsibility to update the state after this method is called so that the
+	 * closed socket is not accessible or used again after this method is called
+	 */
+	close() {
+		this.transitionChunkBuffer = null;
+		switch (this.socket.state) {
+			case "disconnected":
+			case "terminated":
+			case "stopped":
+				return Promise.resolve();
+			case "connecting": {
+				const ws = this.socket.ws;
+				ws.onmessage = (_message) => {
+					this._logVerbose("Ignoring message received after close");
+				};
+				return new Promise((r) => {
+					ws.onclose = () => {
+						this._logVerbose("Closed after connecting");
+						r();
+					};
+					ws.onopen = () => {
+						this._logVerbose("Opened after connecting");
+						ws.close();
+					};
+				});
+			}
+			case "ready": {
+				this._logVerbose("ws.close called");
+				const ws = this.socket.ws;
+				ws.onmessage = (_message) => {
+					this._logVerbose("Ignoring message received after close");
+				};
+				const result = new Promise((r) => {
+					ws.onclose = () => {
+						r();
+					};
+				});
+				ws.close();
+				return result;
+			}
+			default:
+				this.socket;
+				return Promise.resolve();
+		}
+	}
+	/**
+	 * Close the WebSocket and do not reconnect.
+	 * @returns A Promise that resolves when the WebSocket `onClose` callback is called.
+	 */
+	terminate() {
+		if (this.reconnectDueToServerInactivityTimeout) clearTimeout(this.reconnectDueToServerInactivityTimeout);
+		if (this.scheduledReconnect) {
+			clearTimeout(this.scheduledReconnect.timeout);
+			this.scheduledReconnect = null;
+		}
+		this.cleanupNetworkListener();
+		switch (this.socket.state) {
+			case "terminated":
+			case "stopped":
+			case "disconnected":
+			case "connecting":
+			case "ready": {
+				const result = this.close();
+				this.setSocketState({ state: "terminated" });
+				return result;
+			}
+			default:
+				this.socket;
+				throw new Error(`Invalid websocket state: ${this.socket.state}`);
+		}
+	}
+	stop() {
+		switch (this.socket.state) {
+			case "terminated":
+				return Promise.resolve();
+			case "connecting":
+			case "stopped":
+			case "disconnected":
+			case "ready": {
+				this.cleanupNetworkListener();
+				const result = this.close();
+				this.socket = { state: "stopped" };
+				return result;
+			}
+			default:
+				this.socket;
+				return Promise.resolve();
+		}
+	}
+	/**
+	 * Create a new WebSocket after a previous `stop()`, unless `terminate()` was
+	 * called before.
+	 */
+	tryRestart() {
+		switch (this.socket.state) {
+			case "stopped":
+				break;
+			case "terminated":
+			case "connecting":
+			case "ready":
+			case "disconnected":
+				this.logger.logVerbose("Restart called without stopping first");
+				return;
+			default:
+				this.socket;
+		}
+		this.setupNetworkListener();
+		this.connect();
+	}
+	pause() {
+		switch (this.socket.state) {
+			case "disconnected":
+			case "stopped":
+			case "terminated":
+				return;
+			case "connecting":
+			case "ready":
+				this.socket = {
+					...this.socket,
+					paused: "yes",
+				};
+				return;
+			default:
+				this.socket;
+				return;
+		}
+	}
+	/**
+	 * Try to reconnect immediately, canceling any scheduled reconnect.
+	 * This is useful when detecting network recovery.
+	 * Only takes action if we're in disconnected state (waiting to reconnect).
+	 */
+	tryReconnectImmediately() {
+		this._logVerbose("tryReconnectImmediately called");
+		if (this.socket.state !== "disconnected") {
+			this._logVerbose(`tryReconnectImmediately called but socket state is ${this.socket.state}, no action taken`);
+			return;
+		}
+		let timeSavedMs = null;
+		if (this.scheduledReconnect) {
+			const elapsed = monotonicMillis() - this.scheduledReconnect.scheduledAt;
+			timeSavedMs = Math.max(0, this.scheduledReconnect.backoffMs - elapsed);
+			this._logVerbose(
+				`would have waited ${Math.round(timeSavedMs)}ms more (backoff was ${Math.round(this.scheduledReconnect.backoffMs)}ms, elapsed ${Math.round(elapsed)}ms)`,
+			);
+			clearTimeout(this.scheduledReconnect.timeout);
+			this.scheduledReconnect = null;
+			this._logVerbose("canceled scheduled reconnect");
+		}
+		this.logger.log("Network recovery detected, reconnecting immediately");
+		this.pendingNetworkRecoveryInfo = timeSavedMs !== null ? { timeSavedMs } : null;
+		this.connect();
+	}
+	/**
+	 * Resume the state machine if previously paused.
+	 */
+	resume() {
+		switch (this.socket.state) {
+			case "connecting":
+				this.socket = {
+					...this.socket,
+					paused: "no",
+				};
+				return;
+			case "ready":
+				if (this.socket.paused === "uninitialized") {
+					this.socket = {
+						...this.socket,
+						paused: "no",
+					};
+					this._hasEverConnected = true;
+					this.onOpen({
+						connectionCount: this.connectionCount,
+						lastCloseReason: this.lastCloseReason,
+						clientTs: monotonicMillis(),
+					});
+				} else if (this.socket.paused === "yes") {
+					this.socket = {
+						...this.socket,
+						paused: "no",
+					};
+					this.onResume();
+				}
+				return;
+			case "terminated":
+			case "stopped":
+			case "disconnected":
+				return;
+			default:
+				this.socket;
+		}
+		this.connect();
+	}
+	connectionState() {
+		return {
+			isConnected: this.socket.state === "ready",
+			hasEverConnected: this._hasEverConnected,
+			connectionCount: this.connectionCount,
+			connectionRetries: this.retries,
+		};
+	}
+	_logVerbose(message) {
+		this.logger.logVerbose(message);
+	}
+	nextBackoff(reason) {
+		const baseBackoff =
+			(reason === "client"
+				? 100
+				: reason === "Unknown"
+					? this.defaultInitialBackoff
+					: serverDisconnectErrors[reason].timeout) * Math.pow(2, this.retries);
+		this.retries += 1;
+		const actualBackoff = Math.min(baseBackoff, this.maxBackoff);
+		return actualBackoff + actualBackoff * (Math.random() - 0.5);
+	}
+	reportLargeTransition({ transition, messageLength }) {
+		if (transition.clientClockSkew === void 0 || transition.serverTs === void 0) return;
+		const transitionTransitTime = monotonicMillis() - transition.clientClockSkew - transition.serverTs / 1e6;
+		const prettyTransitionTime = `${Math.round(transitionTransitTime)}ms`;
+		const prettyMessageMB = `${Math.round(messageLength / 1e4) / 100}MB`;
+		const bytesPerSecond = messageLength / (transitionTransitTime / 1e3);
+		const prettyBytesPerSecond = `${Math.round(bytesPerSecond / 1e4) / 100}MB per second`;
+		this._logVerbose(`received ${prettyMessageMB} transition in ${prettyTransitionTime} at ${prettyBytesPerSecond}`);
+		if (messageLength > 2e7)
+			this.logger.log(
+				`received query results totaling more that 20MB (${prettyMessageMB}) which will take a long time to download on slower connections`,
+			);
+		else if (transitionTransitTime > 2e4)
+			this.logger.log(
+				`received query results totaling ${prettyMessageMB} which took more than 20s to arrive (${prettyTransitionTime})`,
+			);
+		if (this.debug)
+			this.sendMessage({
+				type: "Event",
+				eventType: "ClientReceivedTransition",
+				event: {
+					transitionTransitTime,
+					messageLength,
+				},
+			});
+	}
+};
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/sync/session.js
+function newSessionId() {
+	return uuidv4();
+}
+function uuidv4() {
+	return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+		const r = (Math.random() * 16) | 0;
+		return (c === "x" ? r : (r & 3) | 8).toString(16);
+	});
+}
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/vendor/jwt-decode/index.js
+var InvalidTokenError = class extends Error {};
+InvalidTokenError.prototype.name = "InvalidTokenError";
+function b64DecodeUnicode(str) {
+	return decodeURIComponent(
+		atob(str).replace(/(.)/g, (_m, p) => {
+			let code = p.charCodeAt(0).toString(16).toUpperCase();
+			if (code.length < 2) code = "0" + code;
+			return "%" + code;
+		}),
+	);
+}
+function base64UrlDecode(str) {
+	let output = str.replace(/-/g, "+").replace(/_/g, "/");
+	switch (output.length % 4) {
+		case 0:
+			break;
+		case 2:
+			output += "==";
+			break;
+		case 3:
+			output += "=";
+			break;
+		default:
+			throw new Error("base64 string is not of the correct length");
+	}
+	try {
+		return b64DecodeUnicode(output);
+	} catch {
+		return atob(output);
+	}
+}
+function jwtDecode(token, options) {
+	if (typeof token !== "string") throw new InvalidTokenError("Invalid token specified: must be a string");
+	options || (options = {});
+	const pos = options.header === true ? 0 : 1;
+	const part = token.split(".")[pos];
+	if (typeof part !== "string") throw new InvalidTokenError(`Invalid token specified: missing part #${pos + 1}`);
+	let decoded;
+	try {
+		decoded = base64UrlDecode(part);
+	} catch (e) {
+		throw new InvalidTokenError(`Invalid token specified: invalid base64 for part #${pos + 1} (${e.message})`);
+	}
+	try {
+		return JSON.parse(decoded);
+	} catch (e) {
+		throw new InvalidTokenError(`Invalid token specified: invalid json for part #${pos + 1} (${e.message})`);
+	}
+}
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/sync/authentication_manager.js
+var __defProp$3 = Object.defineProperty;
+var __defNormalProp$3 = (obj, key, value) =>
+	key in obj
+		? __defProp$3(obj, key, {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value,
+			})
+		: (obj[key] = value);
+var __publicField$3 = (obj, key, value) => __defNormalProp$3(obj, typeof key !== "symbol" ? key + "" : key, value);
+var MAXIMUM_REFRESH_DELAY = 480 * 60 * 60 * 1e3;
+var MAX_TOKEN_CONFIRMATION_ATTEMPTS = 2;
+var AuthenticationManager = class {
+	constructor(syncState, callbacks, config) {
+		__publicField$3(this, "authState", { state: "noAuth" });
+		__publicField$3(this, "configVersion", 0);
+		__publicField$3(this, "syncState");
+		__publicField$3(this, "authenticate");
+		__publicField$3(this, "stopSocket");
+		__publicField$3(this, "tryRestartSocket");
+		__publicField$3(this, "pauseSocket");
+		__publicField$3(this, "resumeSocket");
+		__publicField$3(this, "clearAuth");
+		__publicField$3(this, "logger");
+		__publicField$3(this, "refreshTokenLeewaySeconds");
+		__publicField$3(this, "initialAuthTokenReuse");
+		__publicField$3(this, "lastRefreshChange");
+		__publicField$3(this, "tokenConfirmationAttempts", 0);
+		this.syncState = syncState;
+		this.authenticate = callbacks.authenticate;
+		this.stopSocket = callbacks.stopSocket;
+		this.tryRestartSocket = callbacks.tryRestartSocket;
+		this.pauseSocket = callbacks.pauseSocket;
+		this.resumeSocket = callbacks.resumeSocket;
+		this.clearAuth = callbacks.clearAuth;
+		this.logger = config.logger;
+		this.refreshTokenLeewaySeconds = config.refreshTokenLeewaySeconds;
+		this.initialAuthTokenReuse = config.initialAuthTokenReuse;
+		this.lastRefreshChange = false;
+	}
+	notifyRefreshChange(isRefreshing) {
+		if (
+			this.authState.state !== "noAuth" &&
+			this.authState.state !== "initialRefetch" &&
+			this.authState.config.onRefreshChange &&
+			this.lastRefreshChange !== isRefreshing
+		) {
+			this.lastRefreshChange = isRefreshing;
+			this.authState.config.onRefreshChange(isRefreshing);
+		}
+	}
+	async setConfig(fetchToken, onChange, onRefreshChange) {
+		this.resetAuthState();
+		this._logVerbose("pausing WS for auth token fetch");
+		this.pauseSocket();
+		const token = await this.fetchTokenAndGuardAgainstRace(fetchToken, { forceRefreshToken: false });
+		if (token.isFromOutdatedConfig) return;
+		const config = {
+			fetchToken,
+			onAuthChange: onChange,
+			onRefreshChange,
+		};
+		if (token.value) {
+			this.setAuthState({
+				state: "waitingForServerConfirmationOfCachedToken",
+				config,
+				hasRetried: false,
+			});
+			this.authenticate(token.value);
+		} else {
+			this.setAuthState({
+				state: "initialRefetch",
+				config,
+			});
+			await this.refetchToken();
+		}
+		this._logVerbose("resuming WS after auth token fetch");
+		this.resumeSocket();
+	}
+	onTransition(serverMessage) {
+		if (!this.syncState.isCurrentOrNewerAuthVersion(serverMessage.endVersion.identity)) return;
+		if (serverMessage.endVersion.identity <= serverMessage.startVersion.identity) return;
+		this._logVerbose(`auth state is ${this.authState.state} when handling transition`);
+		this.syncState.markAuthCompletion();
+		if (this.authState.state === "waitingForServerConfirmationOfCachedToken") {
+			this._logVerbose("server confirmed auth token is valid");
+			const cachedToken = this.syncState.getAuth()?.value;
+			if (this.initialAuthTokenReuse && cachedToken)
+				this.scheduleTokenRefetch(cachedToken, serverMessage.clientClockSkew);
+			else this.refetchToken();
+			this.authState.config.onAuthChange(true);
+			return;
+		}
+		if (this.authState.state === "waitingForServerConfirmationOfFreshToken") {
+			this._logVerbose("server confirmed new auth token is valid");
+			this.notifyRefreshChange(false);
+			this.scheduleTokenRefetch(this.authState.token);
+			this.tokenConfirmationAttempts = 0;
+			if (!this.authState.hadAuth) this.authState.config.onAuthChange(true);
+		}
+	}
+	onAuthError(serverMessage) {
+		if (
+			serverMessage.authUpdateAttempted === false &&
+			(this.authState.state === "waitingForServerConfirmationOfFreshToken" ||
+				this.authState.state === "waitingForServerConfirmationOfCachedToken")
+		) {
+			this._logVerbose("ignoring non-auth token expired error");
+			return;
+		}
+		const { baseVersion } = serverMessage;
+		if (!this.syncState.isCurrentOrNewerAuthVersion(baseVersion + 1)) {
+			this._logVerbose("ignoring auth error for previous auth attempt");
+			return;
+		}
+		this.tryToReauthenticate(serverMessage);
+	}
+	async tryToReauthenticate(serverMessage) {
+		this._logVerbose(`attempting to reauthenticate: ${serverMessage.error}`);
+		if (
+			this.authState.state === "noAuth" ||
+			(this.authState.state === "waitingForServerConfirmationOfFreshToken" &&
+				this.tokenConfirmationAttempts >= MAX_TOKEN_CONFIRMATION_ATTEMPTS)
+		) {
+			this.logger.error(`Failed to authenticate: "${serverMessage.error}", check your server auth config`);
+			if (this.syncState.hasAuth()) this.syncState.clearAuth();
+			if (this.authState.state !== "noAuth") this.setAndReportAuthFailed(this.authState.config.onAuthChange);
+			return;
+		}
+		if (this.authState.state === "waitingForServerConfirmationOfFreshToken") {
+			this.tokenConfirmationAttempts++;
+			this._logVerbose(
+				`retrying reauthentication, ${MAX_TOKEN_CONFIRMATION_ATTEMPTS - this.tokenConfirmationAttempts} attempts remaining`,
+			);
+		}
+		this.notifyRefreshChange(true);
+		await this.stopSocket();
+		if (this.authState.state === "noAuth") return;
+		const token = await this.fetchTokenAndGuardAgainstRace(this.authState.config.fetchToken, {
+			forceRefreshToken: true,
+		});
+		if (token.isFromOutdatedConfig) return;
+		if (token.value && this.syncState.isNewAuth(token.value)) {
+			this.authenticate(token.value);
+			this.setAuthState({
+				state: "waitingForServerConfirmationOfFreshToken",
+				config: this.authState.config,
+				token: token.value,
+				hadAuth: this.authState.state === "notRefetching" || this.authState.state === "waitingForScheduledRefetch",
+			});
+		} else {
+			this._logVerbose("reauthentication failed, could not fetch a new token");
+			if (this.syncState.hasAuth()) this.syncState.clearAuth();
+			this.setAndReportAuthFailed(this.authState.config.onAuthChange);
+		}
+		this.tryRestartSocket();
+	}
+	async refetchToken() {
+		if (this.authState.state === "noAuth") return;
+		this._logVerbose("refetching auth token");
+		const token = await this.fetchTokenAndGuardAgainstRace(this.authState.config.fetchToken, {
+			forceRefreshToken: true,
+		});
+		if (token.isFromOutdatedConfig) return;
+		if (token.value)
+			if (this.syncState.isNewAuth(token.value)) {
+				this.setAuthState({
+					state: "waitingForServerConfirmationOfFreshToken",
+					hadAuth: this.syncState.hasAuth(),
+					token: token.value,
+					config: this.authState.config,
+				});
+				this.authenticate(token.value);
+			} else
+				this.setAuthState({
+					state: "notRefetching",
+					config: this.authState.config,
+				});
+		else {
+			this._logVerbose("refetching token failed");
+			if (this.syncState.hasAuth()) this.clearAuth();
+			this.setAndReportAuthFailed(this.authState.config.onAuthChange);
+		}
+		this._logVerbose("restarting WS after auth token fetch (if currently stopped)");
+		this.tryRestartSocket();
+	}
+	scheduleTokenRefetch(token, clientClockSkewMs) {
+		if (this.authState.state === "noAuth") return;
+		const decodedToken = this.decodeToken(token);
+		if (!decodedToken) {
+			this.logger.error("Auth token is not a valid JWT, cannot refetch the token");
+			return;
+		}
+		const { iat, exp } = decodedToken;
+		if (!iat || !exp) {
+			this.logger.error("Auth token does not have required fields, cannot refetch the token");
+			return;
+		}
+		const fullLifetimeSeconds = exp - iat;
+		if (fullLifetimeSeconds <= 2) {
+			this.logger.error("Auth token does not live long enough, cannot refetch the token");
+			return;
+		}
+		let tokenValiditySeconds;
+		if (clientClockSkewMs !== void 0) {
+			tokenValiditySeconds = exp - (Date.now() - clientClockSkewMs) / 1e3;
+			if (tokenValiditySeconds <= 0) tokenValiditySeconds = 0;
+		} else tokenValiditySeconds = fullLifetimeSeconds;
+		let delay = Math.min(MAXIMUM_REFRESH_DELAY, (tokenValiditySeconds - this.refreshTokenLeewaySeconds) * 1e3);
+		if (delay <= 0) {
+			this.logger.warn(
+				`Refetching auth token immediately, configured leeway ${this.refreshTokenLeewaySeconds}s is larger than the token's lifetime ${tokenValiditySeconds}s`,
+			);
+			delay = 0;
+		}
+		const refetchTokenTimeoutId = setTimeout(() => {
+			this._logVerbose("running scheduled token refetch");
+			this.refetchToken();
+		}, delay);
+		this.setAuthState({
+			state: "waitingForScheduledRefetch",
+			refetchTokenTimeoutId,
+			config: this.authState.config,
+		});
+		this._logVerbose(`scheduled preemptive auth token refetching in ${delay}ms`);
+	}
+	async fetchTokenAndGuardAgainstRace(fetchToken, fetchArgs) {
+		const originalConfigVersion = ++this.configVersion;
+		this._logVerbose(`fetching token with config version ${originalConfigVersion}`);
+		const token = await fetchToken(fetchArgs);
+		if (this.configVersion !== originalConfigVersion) {
+			this._logVerbose(`stale config version, expected ${originalConfigVersion}, got ${this.configVersion}`);
+			return { isFromOutdatedConfig: true };
+		}
+		return {
+			isFromOutdatedConfig: false,
+			value: token,
+		};
+	}
+	stop() {
+		this.resetAuthState();
+		this.configVersion++;
+		this._logVerbose(`config version bumped to ${this.configVersion}`);
+	}
+	setAndReportAuthFailed(onAuthChange) {
+		onAuthChange(false);
+		this.resetAuthState();
+	}
+	resetAuthState() {
+		this.notifyRefreshChange(false);
+		this.setAuthState({ state: "noAuth" });
+	}
+	setAuthState(newAuth) {
+		const authStateForLog =
+			newAuth.state === "waitingForServerConfirmationOfFreshToken"
+				? {
+						hadAuth: newAuth.hadAuth,
+						state: newAuth.state,
+						token: `...${newAuth.token.slice(-7)}`,
+					}
+				: { state: newAuth.state };
+		this._logVerbose(`setting auth state to ${JSON.stringify(authStateForLog)}`);
+		switch (newAuth.state) {
+			case "waitingForScheduledRefetch":
+			case "notRefetching":
+			case "noAuth":
+				this.tokenConfirmationAttempts = 0;
+				break;
+			case "waitingForServerConfirmationOfFreshToken":
+			case "waitingForServerConfirmationOfCachedToken":
+			case "initialRefetch":
+				break;
+			default:
+		}
+		if (this.authState.state === "waitingForScheduledRefetch") clearTimeout(this.authState.refetchTokenTimeoutId);
+		this.authState = newAuth;
+	}
+	decodeToken(token) {
+		try {
+			return jwtDecode(token);
+		} catch (e) {
+			this._logVerbose(`Error decoding token: ${e instanceof Error ? e.message : "Unknown error"}`);
+			return null;
+		}
+	}
+	_logVerbose(message) {
+		this.logger.logVerbose(`${message} [v${this.configVersion}]`);
+	}
+};
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/sync/metrics.js
+var markNames = ["convexClientConstructed", "convexWebSocketOpen", "convexFirstMessageReceived"];
+function mark(name, sessionId) {
+	const detail = { sessionId };
+	if (typeof performance === "undefined" || !performance.mark) return;
+	performance.mark(name, { detail });
+}
+function performanceMarkToJson(mark2) {
+	let name = mark2.name.slice(6);
+	name = name.charAt(0).toLowerCase() + name.slice(1);
+	return {
+		name,
+		startTime: mark2.startTime,
+	};
+}
+function getMarksReport(sessionId) {
+	if (typeof performance === "undefined" || !performance.getEntriesByName) return [];
+	const allMarks = [];
+	for (const name of markNames) {
+		const marks = performance
+			.getEntriesByName(name)
+			.filter((entry) => entry.entryType === "mark")
+			.filter((mark2) => mark2.detail.sessionId === sessionId);
+		allMarks.push(...marks);
+	}
+	return allMarks.map(performanceMarkToJson);
+}
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/sync/client.js
+var __defProp$2 = Object.defineProperty;
+var __defNormalProp$2 = (obj, key, value) =>
+	key in obj
+		? __defProp$2(obj, key, {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value,
+			})
+		: (obj[key] = value);
+var __publicField$2 = (obj, key, value) => __defNormalProp$2(obj, typeof key !== "symbol" ? key + "" : key, value);
+var BaseConvexClient = class {
+	/**
+	 * @param address - The url of your Convex deployment, often provided
+	 * by an environment variable. E.g. `https://small-mouse-123.convex.cloud`.
+	 * @param onTransition - A callback receiving an array of query tokens
+	 * corresponding to query results that have changed -- additional handlers
+	 * can be added via `addOnTransitionHandler`.
+	 * @param options - See {@link BaseConvexClientOptions} for a full description.
+	 */
+	constructor(address, onTransition, options) {
+		__publicField$2(this, "address");
+		__publicField$2(this, "state");
+		__publicField$2(this, "requestManager");
+		__publicField$2(this, "webSocketManager");
+		__publicField$2(this, "authenticationManager");
+		__publicField$2(this, "remoteQuerySet");
+		__publicField$2(this, "optimisticQueryResults");
+		__publicField$2(this, "_transitionHandlerCounter", 0);
+		__publicField$2(this, "_nextRequestId");
+		__publicField$2(this, "_onTransitionFns", /* @__PURE__ */ new Map());
+		__publicField$2(this, "_sessionId");
+		__publicField$2(this, "firstMessageReceived", false);
+		__publicField$2(this, "debug");
+		__publicField$2(this, "logger");
+		__publicField$2(this, "maxObservedTimestamp");
+		__publicField$2(this, "connectionStateSubscribers", /* @__PURE__ */ new Map());
+		__publicField$2(this, "nextConnectionStateSubscriberId", 0);
+		__publicField$2(this, "_lastPublishedConnectionState");
+		/**
+		 * Call this whenever the connection state may have changed in a way that could
+		 * require publishing it. Schedules a possibly update.
+		 */
+		__publicField$2(this, "markConnectionStateDirty", () => {
+			Promise.resolve().then(() => {
+				const curConnectionState = this.connectionState();
+				if (JSON.stringify(curConnectionState) !== JSON.stringify(this._lastPublishedConnectionState)) {
+					this._lastPublishedConnectionState = curConnectionState;
+					for (const cb of this.connectionStateSubscribers.values()) cb(curConnectionState);
+				}
+			});
+		});
+		__publicField$2(this, "mark", (name) => {
+			if (this.debug) mark(name, this.sessionId);
+		});
+		if (typeof address === "object")
+			throw new Error(
+				"Passing a ClientConfig object is no longer supported. Pass the URL of the Convex deployment as a string directly.",
+			);
+		if (options?.skipConvexDeploymentUrlCheck !== true) validateDeploymentUrl(address);
+		options = { ...options };
+		const authRefreshTokenLeewaySeconds = options.authRefreshTokenLeewaySeconds ?? 10;
+		let webSocketConstructor = options.webSocketConstructor;
+		if (!webSocketConstructor && typeof WebSocket === "undefined")
+			throw new Error(
+				"No WebSocket global variable defined! To use Convex in an environment without WebSocket try the HTTP client: https://docs.convex.dev/api/classes/browser.ConvexHttpClient",
+			);
+		webSocketConstructor = webSocketConstructor || WebSocket;
+		this.debug = options.reportDebugInfoToConvex ?? false;
+		this.address = address;
+		this.logger =
+			options.logger === false
+				? instantiateNoopLogger({ verbose: options.verbose ?? false })
+				: options.logger !== true && options.logger
+					? options.logger
+					: instantiateDefaultLogger({ verbose: options.verbose ?? false });
+		const i = address.search("://");
+		if (i === -1) throw new Error("Provided address was not an absolute URL.");
+		const origin = address.substring(i + 3);
+		const protocol = address.substring(0, i);
+		let wsProtocol;
+		if (protocol === "http") wsProtocol = "ws";
+		else if (protocol === "https") wsProtocol = "wss";
+		else throw new Error(`Unknown parent protocol ${protocol}`);
+		const wsUri = `${wsProtocol}://${origin}/api/${version}/sync`;
+		this.state = new LocalSyncState();
+		this.remoteQuerySet = new RemoteQuerySet((queryId) => this.state.queryPath(queryId), this.logger);
+		this.requestManager = new RequestManager(this.logger, this.markConnectionStateDirty);
+		const pauseSocket = () => {
+			this.webSocketManager.pause();
+			this.state.pause();
+		};
+		this.authenticationManager = new AuthenticationManager(
+			this.state,
+			{
+				authenticate: (token) => {
+					const message = this.state.setAuth(token);
+					this.webSocketManager.sendMessage(message);
+					return message.baseVersion;
+				},
+				stopSocket: () => this.webSocketManager.stop(),
+				tryRestartSocket: () => this.webSocketManager.tryRestart(),
+				pauseSocket,
+				resumeSocket: () => this.webSocketManager.resume(),
+				clearAuth: () => {
+					this.clearAuth();
+				},
+			},
+			{
+				logger: this.logger,
+				refreshTokenLeewaySeconds: authRefreshTokenLeewaySeconds,
+				initialAuthTokenReuse: options.initialAuthTokenReuse ?? false,
+			},
+		);
+		this.optimisticQueryResults = new OptimisticQueryResults();
+		this.addOnTransitionHandler((transition) => {
+			onTransition(transition.queries.map((q) => q.token));
+		});
+		this._nextRequestId = 0;
+		this._sessionId = newSessionId();
+		const { unsavedChangesWarning } = options;
+		if (typeof window === "undefined" || typeof window.addEventListener === "undefined") {
+			if (unsavedChangesWarning === true)
+				throw new Error(
+					"unsavedChangesWarning requested, but window.addEventListener not found! Remove {unsavedChangesWarning: true} from Convex client options.",
+				);
+		} else if (unsavedChangesWarning !== false)
+			window.addEventListener("beforeunload", (e) => {
+				if (this.requestManager.hasIncompleteRequests()) {
+					e.preventDefault();
+					const confirmationMessage = "Are you sure you want to leave? Your changes may not be saved.";
+					(e || window.event).returnValue = confirmationMessage;
+					return confirmationMessage;
+				}
+			});
+		this.webSocketManager = new WebSocketManager(
+			wsUri,
+			{
+				onOpen: (reconnectMetadata) => {
+					this.mark("convexWebSocketOpen");
+					this.webSocketManager.sendMessage({
+						...reconnectMetadata,
+						type: "Connect",
+						sessionId: this._sessionId,
+						maxObservedTimestamp: this.maxObservedTimestamp,
+					});
+					this.remoteQuerySet = new RemoteQuerySet((queryId) => this.state.queryPath(queryId), this.logger);
+					const [querySetModification, authModification] = this.state.restart();
+					if (authModification) this.webSocketManager.sendMessage(authModification);
+					this.webSocketManager.sendMessage(querySetModification);
+					for (const message of this.requestManager.restart()) this.webSocketManager.sendMessage(message);
+				},
+				onResume: () => {
+					const [querySetModification, authModification] = this.state.resume();
+					if (authModification) this.webSocketManager.sendMessage(authModification);
+					if (querySetModification) this.webSocketManager.sendMessage(querySetModification);
+					for (const message of this.requestManager.resume()) this.webSocketManager.sendMessage(message);
+				},
+				onMessage: (serverMessage) => {
+					if (!this.firstMessageReceived) {
+						this.firstMessageReceived = true;
+						this.mark("convexFirstMessageReceived");
+						this.reportMarks();
+					}
+					switch (serverMessage.type) {
+						case "Transition": {
+							this.observedTimestamp(serverMessage.endVersion.ts);
+							this.authenticationManager.onTransition(serverMessage);
+							this.remoteQuerySet.transition(serverMessage);
+							this.state.transition(serverMessage);
+							const completedRequests = this.requestManager.removeCompleted(this.remoteQuerySet.timestamp());
+							this.notifyOnQueryResultChanges(completedRequests);
+							break;
+						}
+						case "MutationResponse": {
+							if (serverMessage.success) this.observedTimestamp(serverMessage.ts);
+							const completedMutationInfo = this.requestManager.onResponse(serverMessage);
+							if (completedMutationInfo !== null)
+								this.notifyOnQueryResultChanges(
+									/* @__PURE__ */ new Map([[completedMutationInfo.requestId, completedMutationInfo.result]]),
+								);
+							break;
+						}
+						case "ActionResponse":
+							this.requestManager.onResponse(serverMessage);
+							break;
+						case "AuthError":
+							this.authenticationManager.onAuthError(serverMessage);
+							break;
+						case "FatalError": {
+							const error = logFatalError(this.logger, serverMessage.error);
+							this.webSocketManager.terminate();
+							throw error;
+						}
+						default:
+					}
+					return { hasSyncedPastLastReconnect: this.hasSyncedPastLastReconnect() };
+				},
+				onServerDisconnectError: options.onServerDisconnectError,
+			},
+			webSocketConstructor,
+			this.logger,
+			this.markConnectionStateDirty,
+			this.debug,
+		);
+		this.mark("convexClientConstructed");
+		if (options.expectAuth) pauseSocket();
+	}
+	/**
+	 * Return true if there is outstanding work from prior to the time of the most recent restart.
+	 * This indicates that the client has not proven itself to have gotten past the issue that
+	 * potentially led to the restart. Use this to influence when to reset backoff after a failure.
+	 */
+	hasSyncedPastLastReconnect() {
+		return this.requestManager.hasSyncedPastLastReconnect() && this.state.hasSyncedPastLastReconnect();
+	}
+	observedTimestamp(observedTs) {
+		if (this.maxObservedTimestamp === void 0 || this.maxObservedTimestamp.lessThanOrEqual(observedTs))
+			this.maxObservedTimestamp = observedTs;
+	}
+	getMaxObservedTimestamp() {
+		return this.maxObservedTimestamp;
+	}
+	/**
+	 * Compute the current query results based on the remoteQuerySet and the
+	 * current optimistic updates and call `onTransition` for all the changed
+	 * queries.
+	 *
+	 * @param completedMutations - A set of mutation IDs whose optimistic updates
+	 * are no longer needed.
+	 */
+	notifyOnQueryResultChanges(completedRequests) {
+		const remoteQueryResults = this.remoteQuerySet.remoteQueryResults();
+		const queryTokenToValue = /* @__PURE__ */ new Map();
+		for (const [queryId, result] of remoteQueryResults) {
+			const queryToken = this.state.queryToken(queryId);
+			if (queryToken !== null) {
+				const query = {
+					result,
+					udfPath: this.state.queryPath(queryId),
+					args: this.state.queryArgs(queryId),
+				};
+				queryTokenToValue.set(queryToken, query);
+			}
+		}
+		const changedQueryTokens = this.optimisticQueryResults.ingestQueryResultsFromServer(
+			queryTokenToValue,
+			new Set(completedRequests.keys()),
+		);
+		this.handleTransition({
+			queries: changedQueryTokens.map((token) => {
+				return {
+					token,
+					modification: {
+						kind: "Updated",
+						result: this.optimisticQueryResults.rawQueryResult(token),
+					},
+				};
+			}),
+			reflectedMutations: Array.from(completedRequests).map(([requestId, result]) => ({
+				requestId,
+				result,
+			})),
+			timestamp: this.remoteQuerySet.timestamp(),
+		});
+	}
+	handleTransition(transition) {
+		for (const fn of this._onTransitionFns.values()) fn(transition);
+	}
+	/**
+	 * Add a handler that will be called on a transition.
+	 *
+	 * Any external side effects (e.g. setting React state) should be handled here.
+	 *
+	 * @param fn
+	 *
+	 * @returns
+	 */
+	addOnTransitionHandler(fn) {
+		const id = this._transitionHandlerCounter++;
+		this._onTransitionFns.set(id, fn);
+		return () => this._onTransitionFns.delete(id);
+	}
+	/**
+	 * Get the current JWT auth token and decoded claims.
+	 */
+	getCurrentAuthClaims() {
+		const authToken = this.state.getAuth();
+		let decoded = {};
+		if (authToken && authToken.tokenType === "User")
+			try {
+				decoded = authToken ? jwtDecode(authToken.value) : {};
+			} catch {
+				decoded = {};
+			}
+		else return;
+		return {
+			token: authToken.value,
+			decoded,
+		};
+	}
+	/**
+	 * Set the authentication token to be used for subsequent queries and mutations.
+	 * `fetchToken` will be called automatically again if a token expires.
+	 * `fetchToken` should return `null` if the token cannot be retrieved, for example
+	 * when the user's rights were permanently revoked.
+	 * @param fetchToken - an async function returning the JWT-encoded OpenID Connect Identity Token
+	 * @param onChange - a callback that will be called when the authentication status changes
+	 * @param onRefreshChange - a callback called with `true` when the socket is paused to fetch a replacement token after a server rejection, and `false` when refresh completes
+	 */
+	setAuth(fetchToken, onChange, onRefreshChange) {
+		this.authenticationManager.setConfig(fetchToken, onChange, onRefreshChange);
+	}
+	hasAuth() {
+		return this.state.hasAuth();
+	}
+	/** @internal */
+	setAdminAuth(value, fakeUserIdentity) {
+		const message = this.state.setAdminAuth(value, fakeUserIdentity);
+		this.webSocketManager.sendMessage(message);
+	}
+	clearAuth() {
+		const message = this.state.clearAuth();
+		this.webSocketManager.sendMessage(message);
+	}
+	/**
+	* Subscribe to a query function.
+	*
+	* Whenever this query's result changes, the `onTransition` callback
+	* passed into the constructor will be called.
+	*
+	* @param name - The name of the query.
+	* @param args - An arguments object for the query. If this is omitted, the
+	* arguments will be `{}`.
+	* @param options - A {@link SubscribeOptions} options object for this query.
+	
+	* @returns An object containing a {@link QueryToken} corresponding to this
+	* query and an `unsubscribe` callback.
+	*/
+	subscribe(name, args, options) {
+		const argsObject = parseArgs(args);
+		const { modification, queryToken, unsubscribe } = this.state.subscribe(
+			name,
+			argsObject,
+			options?.journal,
+			options?.componentPath,
+		);
+		if (modification !== null) this.webSocketManager.sendMessage(modification);
+		return {
+			queryToken,
+			unsubscribe: () => {
+				const modification2 = unsubscribe();
+				if (modification2) this.webSocketManager.sendMessage(modification2);
+			},
+		};
+	}
+	/**
+	 * A query result based only on the current, local state.
+	 *
+	 * The only way this will return a value is if we're already subscribed to the
+	 * query or its value has been set optimistically.
+	 */
+	localQueryResult(udfPath, args) {
+		const queryToken = serializePathAndArgs(udfPath, parseArgs(args));
+		return this.optimisticQueryResults.queryResult(queryToken);
+	}
+	/**
+	 * Get query result by query token based on current, local state
+	 *
+	 * The only way this will return a value is if we're already subscribed to the
+	 * query or its value has been set optimistically.
+	 *
+	 * @internal
+	 */
+	localQueryResultByToken(queryToken) {
+		return this.optimisticQueryResults.queryResult(queryToken);
+	}
+	/**
+	 * Whether local query result is available for a token.
+	 *
+	 * This method does not throw if the result is an error.
+	 *
+	 * @internal
+	 */
+	hasLocalQueryResultByToken(queryToken) {
+		return this.optimisticQueryResults.hasQueryResult(queryToken);
+	}
+	/**
+	 * @internal
+	 */
+	localQueryLogs(udfPath, args) {
+		const queryToken = serializePathAndArgs(udfPath, parseArgs(args));
+		return this.optimisticQueryResults.queryLogs(queryToken);
+	}
+	/**
+	 * Retrieve the current {@link QueryJournal} for this query function.
+	 *
+	 * If we have not yet received a result for this query, this will be `undefined`.
+	 *
+	 * @param name - The name of the query.
+	 * @param args - The arguments object for this query.
+	 * @returns The query's {@link QueryJournal} or `undefined`.
+	 */
+	queryJournal(name, args) {
+		const queryToken = serializePathAndArgs(name, parseArgs(args));
+		return this.state.queryJournal(queryToken);
+	}
+	/**
+	 * Get the current {@link ConnectionState} between the client and the Convex
+	 * backend.
+	 *
+	 * @returns The {@link ConnectionState} with the Convex backend.
+	 */
+	connectionState() {
+		const wsConnectionState = this.webSocketManager.connectionState();
+		return {
+			hasInflightRequests: this.requestManager.hasInflightRequests(),
+			isWebSocketConnected: wsConnectionState.isConnected,
+			hasEverConnected: wsConnectionState.hasEverConnected,
+			connectionCount: wsConnectionState.connectionCount,
+			connectionRetries: wsConnectionState.connectionRetries,
+			timeOfOldestInflightRequest: this.requestManager.timeOfOldestInflightRequest(),
+			inflightMutations: this.requestManager.inflightMutations(),
+			inflightActions: this.requestManager.inflightActions(),
+		};
+	}
+	/**
+	 * Subscribe to the {@link ConnectionState} between the client and the Convex
+	 * backend, calling a callback each time it changes.
+	 *
+	 * Subscribed callbacks will be called when any part of ConnectionState changes.
+	 * ConnectionState may grow in future versions (e.g. to provide a array of
+	 * inflight requests) in which case callbacks would be called more frequently.
+	 *
+	 * @returns An unsubscribe function to stop listening.
+	 */
+	subscribeToConnectionState(cb) {
+		const id = this.nextConnectionStateSubscriberId++;
+		this.connectionStateSubscribers.set(id, cb);
+		return () => {
+			this.connectionStateSubscribers.delete(id);
+		};
+	}
+	/**
+	* Execute a mutation function.
+	*
+	* @param name - The name of the mutation.
+	* @param args - An arguments object for the mutation. If this is omitted,
+	* the arguments will be `{}`.
+	* @param options - A {@link MutationOptions} options object for this mutation.
+	
+	* @returns - A promise of the mutation's result.
+	*/
+	async mutation(name, args, options) {
+		const result = await this.mutationInternal(name, args, options);
+		if (!result.success) {
+			if (result.errorData !== void 0)
+				throw forwardData(result, new ConvexError(createHybridErrorStacktrace("mutation", name, result)));
+			throw new Error(createHybridErrorStacktrace("mutation", name, result));
+		}
+		return result.value;
+	}
+	/**
+	 * @internal
+	 */
+	async mutationInternal(udfPath, args, options, componentPath) {
+		const { mutationPromise } = this.enqueueMutation(udfPath, args, options, componentPath);
+		return mutationPromise;
+	}
+	/**
+	 * @internal
+	 */
+	enqueueMutation(udfPath, args, options, componentPath) {
+		const mutationArgs = parseArgs(args);
+		this.tryReportLongDisconnect();
+		const requestId = this.nextRequestId;
+		this._nextRequestId++;
+		if (options !== void 0) {
+			const optimisticUpdate = options.optimisticUpdate;
+			if (optimisticUpdate !== void 0) {
+				const wrappedUpdate = (localQueryStore) => {
+					if (optimisticUpdate(localQueryStore, mutationArgs) instanceof Promise)
+						this.logger.warn("Optimistic update handler returned a Promise. Optimistic updates should be synchronous.");
+				};
+				const changedQueries = this.optimisticQueryResults
+					.applyOptimisticUpdate(wrappedUpdate, requestId)
+					.map((token) => {
+						const localResult = this.localQueryResultByToken(token);
+						return {
+							token,
+							modification: {
+								kind: "Updated",
+								result:
+									localResult === void 0
+										? void 0
+										: {
+												success: true,
+												value: localResult,
+												logLines: [],
+											},
+							},
+						};
+					});
+				this.handleTransition({
+					queries: changedQueries,
+					reflectedMutations: [],
+					timestamp: this.remoteQuerySet.timestamp(),
+				});
+			}
+		}
+		const message = {
+			type: "Mutation",
+			requestId,
+			udfPath,
+			componentPath,
+			args: [convexToJson(mutationArgs)],
+		};
+		const mightBeSent = this.webSocketManager.sendMessage(message);
+		return {
+			requestId,
+			mutationPromise: this.requestManager.request(message, mightBeSent),
+		};
+	}
+	/**
+	 * Execute an action function.
+	 *
+	 * @param name - The name of the action.
+	 * @param args - An arguments object for the action. If this is omitted,
+	 * the arguments will be `{}`.
+	 * @returns A promise of the action's result.
+	 */
+	async action(name, args) {
+		const result = await this.actionInternal(name, args);
+		if (!result.success) {
+			if (result.errorData !== void 0)
+				throw forwardData(result, new ConvexError(createHybridErrorStacktrace("action", name, result)));
+			throw new Error(createHybridErrorStacktrace("action", name, result));
+		}
+		return result.value;
+	}
+	/**
+	 * @internal
+	 */
+	async actionInternal(udfPath, args, componentPath) {
+		const actionArgs = parseArgs(args);
+		const requestId = this.nextRequestId;
+		this._nextRequestId++;
+		this.tryReportLongDisconnect();
+		const message = {
+			type: "Action",
+			requestId,
+			udfPath,
+			componentPath,
+			args: [convexToJson(actionArgs)],
+		};
+		const mightBeSent = this.webSocketManager.sendMessage(message);
+		return this.requestManager.request(message, mightBeSent);
+	}
+	/**
+	 * Close any network handles associated with this client and stop all subscriptions.
+	 *
+	 * Call this method when you're done with an {@link BaseConvexClient} to
+	 * dispose of its sockets and resources.
+	 *
+	 * @returns A `Promise` fulfilled when the connection has been completely closed.
+	 */
+	async close() {
+		this.authenticationManager.stop();
+		return this.webSocketManager.terminate();
+	}
+	/**
+	 * Return the address for this client, useful for creating a new client.
+	 *
+	 * Not guaranteed to match the address with which this client was constructed:
+	 * it may be canonicalized.
+	 */
+	get url() {
+		return this.address;
+	}
+	/**
+	 * @internal
+	 */
+	get nextRequestId() {
+		return this._nextRequestId;
+	}
+	/**
+	 * @internal
+	 */
+	get sessionId() {
+		return this._sessionId;
+	}
+	/**
+	 * Reports performance marks to the server. This should only be called when
+	 * we have a functional websocket.
+	 */
+	reportMarks() {
+		if (this.debug) {
+			const report = getMarksReport(this.sessionId);
+			this.webSocketManager.sendMessage({
+				type: "Event",
+				eventType: "ClientConnect",
+				event: report,
+			});
+		}
+	}
+	tryReportLongDisconnect() {
+		if (!this.debug) return;
+		const timeOfOldestRequest = this.connectionState().timeOfOldestInflightRequest;
+		if (timeOfOldestRequest === null || Date.now() - timeOfOldestRequest.getTime() <= 60 * 1e3) return;
+		const endpoint = `${this.address}/api/debug_event`;
+		fetch(endpoint, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"Convex-Client": `npm-${version}`,
+			},
+			body: JSON.stringify({ event: "LongWebsocketDisconnect" }),
+		})
+			.then((response) => {
+				if (!response.ok) this.logger.warn("Analytics request failed with response:", response.body);
+			})
+			.catch((error) => {
+				this.logger.warn("Analytics response failed with error:", error);
+			});
+	}
+};
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/sync/pagination.js
+function asPaginationResult(value) {
+	if (
+		typeof value !== "object" ||
+		value === null ||
+		!Array.isArray(value.page) ||
+		typeof value.isDone !== "boolean" ||
+		typeof value.continueCursor !== "string"
+	)
+		throw new Error(`Not a valid paginated query result: ${value?.toString()}`);
+	return value;
+}
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/sync/paginated_query_client.js
+var __defProp$1 = Object.defineProperty;
+var __defNormalProp$1 = (obj, key, value) =>
+	key in obj
+		? __defProp$1(obj, key, {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value,
+			})
+		: (obj[key] = value);
+var __publicField$1 = (obj, key, value) => __defNormalProp$1(obj, typeof key !== "symbol" ? key + "" : key, value);
+var PaginatedQueryClient = class {
+	constructor(client, onTransition) {
+		this.client = client;
+		this.onTransition = onTransition;
+		__publicField$1(this, "paginatedQuerySet", /* @__PURE__ */ new Map());
+		__publicField$1(this, "lastTransitionTs");
+		this.lastTransitionTs = Long.fromNumber(0);
+		this.client.addOnTransitionHandler((transition) => this.onBaseTransition(transition));
+	}
+	/**
+	 * Subscribe to a paginated query.
+	 *
+	 * @param name - The name of the paginated query function
+	 * @param args - Arguments for the query (excluding paginationOpts)
+	 * @param options - Pagination options including initialNumItems
+	 * @returns Object with paginatedQueryToken and unsubscribe function
+	 */
+	subscribe(name, args, options) {
+		const canonicalizedUdfPath = canonicalizeUdfPath(name);
+		const token = serializePaginatedPathAndArgs(canonicalizedUdfPath, args, options);
+		const unsubscribe = () => this.removePaginatedQuerySubscriber(token);
+		const existingEntry = this.paginatedQuerySet.get(token);
+		if (existingEntry) {
+			existingEntry.numSubscribers += 1;
+			return {
+				paginatedQueryToken: token,
+				unsubscribe,
+			};
+		}
+		this.paginatedQuerySet.set(token, {
+			token,
+			canonicalizedUdfPath,
+			args,
+			numSubscribers: 1,
+			options: { initialNumItems: options.initialNumItems },
+			nextPageKey: 0,
+			pageKeys: [],
+			pageKeyToQuery: /* @__PURE__ */ new Map(),
+			ongoingSplits: /* @__PURE__ */ new Map(),
+			skip: false,
+			id: options.id,
+		});
+		this.addPageToPaginatedQuery(token, null, options.initialNumItems);
+		return {
+			paginatedQueryToken: token,
+			unsubscribe,
+		};
+	}
+	/**
+	 * Get current results for a paginated query based on local state.
+	 *
+	 * Throws an error when one of the pages has errored.
+	 */
+	localQueryResult(name, args, options) {
+		const token = serializePaginatedPathAndArgs(canonicalizeUdfPath(name), args, options);
+		return this.localQueryResultByToken(token);
+	}
+	/**
+	 * @internal
+	 */
+	localQueryResultByToken(token) {
+		const paginatedQuery = this.paginatedQuerySet.get(token);
+		if (!paginatedQuery) return;
+		const activePages = this.activePageQueryTokens(paginatedQuery);
+		if (activePages.length === 0)
+			return {
+				results: [],
+				status: "LoadingFirstPage",
+				loadMore: (numItems) => {
+					return this.loadMoreOfPaginatedQuery(token, numItems);
+				},
+			};
+		let allResults = [];
+		let hasUndefined = false;
+		let isDone = false;
+		for (const pageToken of activePages) {
+			const result = this.client.localQueryResultByToken(pageToken);
+			if (result === void 0) {
+				hasUndefined = true;
+				isDone = false;
+				continue;
+			}
+			const paginationResult = asPaginationResult(result);
+			allResults = allResults.concat(paginationResult.page);
+			isDone = !!paginationResult.isDone;
+		}
+		let status;
+		if (hasUndefined) status = allResults.length === 0 ? "LoadingFirstPage" : "LoadingMore";
+		else if (isDone) status = "Exhausted";
+		else status = "CanLoadMore";
+		return {
+			results: allResults,
+			status,
+			loadMore: (numItems) => {
+				return this.loadMoreOfPaginatedQuery(token, numItems);
+			},
+		};
+	}
+	onBaseTransition(transition) {
+		const changedBaseTokens = transition.queries.map((q) => q.token);
+		const changed = this.queriesContainingTokens(changedBaseTokens);
+		let paginatedQueries = [];
+		if (changed.length > 0) {
+			this.processPaginatedQuerySplits(changed, (token) => this.client.localQueryResultByToken(token));
+			paginatedQueries = changed.map((token) => ({
+				token,
+				modification: {
+					kind: "Updated",
+					result: this.localQueryResultByToken(token),
+				},
+			}));
+		}
+		const extendedTransition = {
+			...transition,
+			paginatedQueries,
+		};
+		this.onTransition(extendedTransition);
+	}
+	/**
+	 * Load more items for a paginated query.
+	 *
+	 * This *always* causes a transition, the status of the query
+	 * has probably changed from "CanLoadMore" to "LoadingMore".
+	 * Data might have changed too: maybe a subscription to this page
+	 * query already exists (unlikely but possible) or this page query
+	 * has an optimistic update providing some initial data.
+	 *
+	 * @internal
+	 */
+	loadMoreOfPaginatedQuery(token, numItems) {
+		this.mustGetPaginatedQuery(token);
+		const lastPageToken = this.queryTokenForLastPageOfPaginatedQuery(token);
+		const lastPageResult = this.client.localQueryResultByToken(lastPageToken);
+		if (!lastPageResult) return false;
+		const paginationResult = asPaginationResult(lastPageResult);
+		if (paginationResult.isDone) return false;
+		this.addPageToPaginatedQuery(token, paginationResult.continueCursor, numItems);
+		const loadMoreTransition = {
+			timestamp: this.lastTransitionTs,
+			reflectedMutations: [],
+			queries: [],
+			paginatedQueries: [
+				{
+					token,
+					modification: {
+						kind: "Updated",
+						result: this.localQueryResultByToken(token),
+					},
+				},
+			],
+		};
+		this.onTransition(loadMoreTransition);
+		return true;
+	}
+	/**
+	 * @internal
+	 */
+	queriesContainingTokens(queryTokens) {
+		if (queryTokens.length === 0) return [];
+		const changed = [];
+		const queryTokenSet = new Set(queryTokens);
+		for (const [paginatedToken, paginatedQuery] of this.paginatedQuerySet)
+			for (const pageToken of this.allQueryTokens(paginatedQuery))
+				if (queryTokenSet.has(pageToken)) {
+					changed.push(paginatedToken);
+					break;
+				}
+		return changed;
+	}
+	/**
+	 * @internal
+	 */
+	processPaginatedQuerySplits(changed, getResult) {
+		for (const paginatedQueryToken of changed) {
+			const paginatedQuery = this.mustGetPaginatedQuery(paginatedQueryToken);
+			const { ongoingSplits, pageKeyToQuery, pageKeys } = paginatedQuery;
+			for (const [pageKey, [splitKey1, splitKey2]] of ongoingSplits)
+				if (
+					getResult(pageKeyToQuery.get(splitKey1).queryToken) !== void 0 &&
+					getResult(pageKeyToQuery.get(splitKey2).queryToken) !== void 0
+				)
+					this.completePaginatedQuerySplit(paginatedQuery, pageKey, splitKey1, splitKey2);
+			for (const pageKey of pageKeys) {
+				if (ongoingSplits.has(pageKey)) continue;
+				const pageEntry = pageKeyToQuery.get(pageKey);
+				if (!pageEntry) throw new Error(`No page query for active pageKey ${pageKey}`);
+				const pageResult = getResult(pageEntry.queryToken);
+				if (!pageResult) continue;
+				const result = asPaginationResult(pageResult);
+				if (
+					result.splitCursor &&
+					(result.pageStatus === "SplitRecommended" ||
+						result.pageStatus === "SplitRequired" ||
+						result.page.length > paginatedQuery.options.initialNumItems * 2)
+				)
+					this.splitPaginatedQueryPage(
+						paginatedQuery,
+						pageKey,
+						pageEntry.cursor,
+						result.splitCursor,
+						result.continueCursor,
+					);
+			}
+		}
+	}
+	splitPaginatedQueryPage(paginatedQuery, pageKey, startCursor, splitCursor, continueCursor) {
+		const splitKey1 = paginatedQuery.nextPageKey++;
+		const splitKey2 = paginatedQuery.nextPageKey++;
+		const paginationOpts = {
+			numItems: paginatedQuery.options.initialNumItems,
+			id: paginatedQuery.id,
+		};
+		const firstSubscription = this.client.subscribe(paginatedQuery.canonicalizedUdfPath, {
+			...paginatedQuery.args,
+			paginationOpts: {
+				...paginationOpts,
+				cursor: startCursor,
+				endCursor: splitCursor,
+			},
+		});
+		paginatedQuery.pageKeyToQuery.set(splitKey1, {
+			...firstSubscription,
+			cursor: startCursor,
+		});
+		const secondSubscription = this.client.subscribe(paginatedQuery.canonicalizedUdfPath, {
+			...paginatedQuery.args,
+			paginationOpts: {
+				...paginationOpts,
+				cursor: splitCursor,
+				endCursor: continueCursor,
+			},
+		});
+		paginatedQuery.pageKeyToQuery.set(splitKey2, {
+			...secondSubscription,
+			cursor: splitCursor,
+		});
+		paginatedQuery.ongoingSplits.set(pageKey, [splitKey1, splitKey2]);
+	}
+	/**
+	 * @internal
+	 */
+	addPageToPaginatedQuery(token, continueCursor, numItems) {
+		const paginatedQuery = this.mustGetPaginatedQuery(token);
+		const pageKey = paginatedQuery.nextPageKey++;
+		const paginationOpts = {
+			cursor: continueCursor,
+			numItems,
+			id: paginatedQuery.id,
+		};
+		const pageArgs = {
+			...paginatedQuery.args,
+			paginationOpts,
+		};
+		const subscription = this.client.subscribe(paginatedQuery.canonicalizedUdfPath, pageArgs);
+		paginatedQuery.pageKeys.push(pageKey);
+		paginatedQuery.pageKeyToQuery.set(pageKey, {
+			...subscription,
+			cursor: continueCursor,
+		});
+		return subscription;
+	}
+	removePaginatedQuerySubscriber(token) {
+		const paginatedQuery = this.paginatedQuerySet.get(token);
+		if (!paginatedQuery) return;
+		paginatedQuery.numSubscribers -= 1;
+		if (paginatedQuery.numSubscribers > 0) return;
+		for (const subscription of paginatedQuery.pageKeyToQuery.values()) subscription.unsubscribe();
+		this.paginatedQuerySet.delete(token);
+	}
+	completePaginatedQuerySplit(paginatedQuery, pageKey, splitKey1, splitKey2) {
+		const originalQuery = paginatedQuery.pageKeyToQuery.get(pageKey);
+		paginatedQuery.pageKeyToQuery.delete(pageKey);
+		const pageIndex = paginatedQuery.pageKeys.indexOf(pageKey);
+		paginatedQuery.pageKeys.splice(pageIndex, 1, splitKey1, splitKey2);
+		paginatedQuery.ongoingSplits.delete(pageKey);
+		originalQuery.unsubscribe();
+	}
+	/** The query tokens for all active pages, in result order */
+	activePageQueryTokens(paginatedQuery) {
+		return paginatedQuery.pageKeys.map((pageKey) => paginatedQuery.pageKeyToQuery.get(pageKey).queryToken);
+	}
+	allQueryTokens(paginatedQuery) {
+		return Array.from(paginatedQuery.pageKeyToQuery.values()).map((sub) => sub.queryToken);
+	}
+	queryTokenForLastPageOfPaginatedQuery(token) {
+		const paginatedQuery = this.mustGetPaginatedQuery(token);
+		const lastPageKey = paginatedQuery.pageKeys[paginatedQuery.pageKeys.length - 1];
+		if (lastPageKey === void 0) throw new Error(`No pages for paginated query ${token}`);
+		return paginatedQuery.pageKeyToQuery.get(lastPageKey).queryToken;
+	}
+	mustGetPaginatedQuery(token) {
+		const paginatedQuery = this.paginatedQuerySet.get(token);
+		if (!paginatedQuery) throw new Error("paginated query no longer exists for token " + token);
+		return paginatedQuery;
+	}
+};
+//#endregion
+//#region node_modules/.pnpm/convex@1.45.0_react@19.2.7/node_modules/convex/dist/esm/browser/simple_client.js
+var __defProp = Object.defineProperty;
+var __defNormalProp = (obj, key, value) =>
+	key in obj
+		? __defProp(obj, key, {
+				enumerable: true,
+				configurable: true,
+				writable: true,
+				value,
+			})
+		: (obj[key] = value);
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+var defaultWebSocketConstructor;
+var ConvexClient = class {
+	/**
+	 * Construct a client and immediately initiate a WebSocket connection to the passed address.
+	 *
+	 * @public
+	 */
+	constructor(address, options = {}) {
+		__publicField(this, "listeners");
+		__publicField(this, "_client");
+		__publicField(this, "_paginatedClient");
+		__publicField(this, "callNewListenersWithCurrentValuesTimer");
+		__publicField(this, "_closed");
+		__publicField(this, "_disabled");
+		if (options.skipConvexDeploymentUrlCheck !== true) validateDeploymentUrl(address);
+		const { disabled, ...baseOptions } = options;
+		this._closed = false;
+		this._disabled = !!disabled;
+		if (defaultWebSocketConstructor && !("webSocketConstructor" in baseOptions) && typeof WebSocket === "undefined")
+			baseOptions.webSocketConstructor = defaultWebSocketConstructor;
+		if (typeof window === "undefined" && !("unsavedChangesWarning" in baseOptions))
+			baseOptions.unsavedChangesWarning = false;
+		if (!this.disabled) {
+			this._client = new BaseConvexClient(address, () => {}, baseOptions);
+			this._paginatedClient = new PaginatedQueryClient(this._client, (transition) => this._transition(transition));
+		}
+		this.listeners = /* @__PURE__ */ new Set();
+	}
+	/**
+	 * Once closed no registered callbacks will fire again.
+	 */
+	get closed() {
+		return this._closed;
+	}
+	get client() {
+		if (this._client) return this._client;
+		throw new Error("ConvexClient is disabled");
+	}
+	/**
+	 * @internal
+	 */
+	get paginatedClient() {
+		if (this._paginatedClient) return this._paginatedClient;
+		throw new Error("ConvexClient is disabled");
+	}
+	get disabled() {
+		return this._disabled;
+	}
+	/**
+	 * Call a callback whenever a new result for a query is received. The callback
+	 * will run soon after being registered if a result for the query is already
+	 * in memory.
+	 *
+	 * The return value is an {@link Unsubscribe} object which is both a function
+	 * an an object with properties. Both of the patterns below work with this object:
+	 *
+	 *```ts
+	 * // call the return value as a function
+	 * const unsubscribe = client.onUpdate(api.messages.list, {}, (messages) => {
+	 *   console.log(messages);
+	 * });
+	 * unsubscribe();
+	 *
+	 * // unpack the return value into its properties
+	 * const {
+	 *   getCurrentValue,
+	 *   unsubscribe,
+	 * } = client.onUpdate(api.messages.list, {}, (messages) => {
+	 *   console.log(messages);
+	 * });
+	 *```
+	 *
+	 * @param query - A {@link server.FunctionReference} for the public query to run.
+	 * @param args - The arguments to run the query with.
+	 * @param callback - Function to call when the query result updates.
+	 * @param onError - Function to call when the query result updates with an error.
+	 * If not provided, errors will be thrown instead of calling the callback.
+	 *
+	 * @return an {@link Unsubscribe} function to stop calling the onUpdate function.
+	 */
+	onUpdate(query, args, callback, onError) {
+		if (this.disabled) return this.createDisabledUnsubscribe();
+		const { queryToken, unsubscribe } = this.client.subscribe(getFunctionName(query), args);
+		const queryInfo = {
+			queryToken,
+			callback,
+			onError,
+			unsubscribe,
+			hasEverRun: false,
+			query,
+			args,
+			paginationOptions: void 0,
+		};
+		this.listeners.add(queryInfo);
+		if (this.queryResultReady(queryToken) && this.callNewListenersWithCurrentValuesTimer === void 0)
+			this.callNewListenersWithCurrentValuesTimer = setTimeout(() => this.callNewListenersWithCurrentValues(), 0);
+		const unsubscribeProps = {
+			unsubscribe: () => {
+				if (this.closed) return;
+				this.listeners.delete(queryInfo);
+				unsubscribe();
+			},
+			getCurrentValue: () => this.client.localQueryResultByToken(queryToken),
+			getQueryLogs: () => this.client.localQueryLogs(queryToken),
+		};
+		const ret = unsubscribeProps.unsubscribe;
+		Object.assign(ret, unsubscribeProps);
+		return ret;
+	}
+	/**
+	 * Call a callback whenever a new result for a paginated query is received.
+	 *
+	 * This is an experimental preview: the final API may change.
+	 * In particular, caching behavior, page splitting, and required paginated query options
+	 * may change.
+	 *
+	 * @param query - A {@link server.FunctionReference} for the public query to run.
+	 * @param args - The arguments to run the query with.
+	 * @param options - Options for the paginated query including initialNumItems and id.
+	 * @param callback - Function to call when the query result updates.
+	 * @param onError - Function to call when the query result updates with an error.
+	 *
+	 * @return an {@link Unsubscribe} function to stop calling the callback.
+	 */
+	onPaginatedUpdate_experimental(query, args, options, callback, onError) {
+		if (this.disabled) return this.createDisabledUnsubscribe();
+		const paginationOptions = {
+			initialNumItems: options.initialNumItems,
+			id: -1,
+		};
+		const { paginatedQueryToken, unsubscribe } = this.paginatedClient.subscribe(
+			getFunctionName(query),
+			args,
+			paginationOptions,
+		);
+		const queryInfo = {
+			queryToken: paginatedQueryToken,
+			callback,
+			onError,
+			unsubscribe,
+			hasEverRun: false,
+			query,
+			args,
+			paginationOptions,
+		};
+		this.listeners.add(queryInfo);
+		if (
+			!!this.paginatedClient.localQueryResultByToken(paginatedQueryToken) &&
+			this.callNewListenersWithCurrentValuesTimer === void 0
+		)
+			this.callNewListenersWithCurrentValuesTimer = setTimeout(() => this.callNewListenersWithCurrentValues(), 0);
+		const unsubscribeProps = {
+			unsubscribe: () => {
+				if (this.closed) return;
+				this.listeners.delete(queryInfo);
+				unsubscribe();
+			},
+			getCurrentValue: () => {
+				return this.paginatedClient.localQueryResult(getFunctionName(query), args, paginationOptions);
+			},
+			getQueryLogs: () => [],
+		};
+		const ret = unsubscribeProps.unsubscribe;
+		Object.assign(ret, unsubscribeProps);
+		return ret;
+	}
+	callNewListenersWithCurrentValues() {
+		this.callNewListenersWithCurrentValuesTimer = void 0;
+		this._transition(
+			{
+				queries: [],
+				paginatedQueries: [],
+			},
+			true,
+		);
+	}
+	queryResultReady(queryToken) {
+		return this.client.hasLocalQueryResultByToken(queryToken);
+	}
+	createDisabledUnsubscribe() {
+		const disabledUnsubscribe = () => {};
+		Object.assign(disabledUnsubscribe, {
+			unsubscribe: disabledUnsubscribe,
+			getCurrentValue: () => void 0,
+			getQueryLogs: () => void 0,
+		});
+		return disabledUnsubscribe;
+	}
+	async close() {
+		if (this.disabled) return;
+		this.listeners.clear();
+		this._closed = true;
+		if (this._paginatedClient) this._paginatedClient = void 0;
+		return this.client.close();
+	}
+	/**
+	 * Get the current JWT auth token and decoded claims.
+	 */
+	getAuth() {
+		if (this.disabled) return;
+		return this.client.getCurrentAuthClaims();
+	}
+	/**
+	 * Set the authentication token to be used for subsequent queries and mutations.
+	 * `fetchToken` will be called automatically again if a token expires.
+	 * `fetchToken` should return `null` if the token cannot be retrieved, for example
+	 * when the user's rights were permanently revoked.
+	 * @param fetchToken - an async function returning the JWT (typically an OpenID Connect Identity Token)
+	 * @param onChange - a callback that will be called when the authentication status changes
+	 */
+	setAuth(fetchToken, onChange) {
+		if (this.disabled) return;
+		this.client.setAuth(fetchToken, onChange ?? (() => {}));
+	}
+	/**
+	 * @internal
+	 */
+	setAdminAuth(token, identity) {
+		if (this.closed) throw new Error("ConvexClient has already been closed.");
+		if (this.disabled) return;
+		this.client.setAdminAuth(token, identity);
+	}
+	/**
+	 * @internal
+	 */
+	_transition({ queries, paginatedQueries }, callNewListeners = false) {
+		const updatedQueries = [...queries.map((q) => q.token), ...paginatedQueries.map((q) => q.token)];
+		for (const queryInfo of this.listeners) {
+			const { callback, queryToken, onError, hasEverRun } = queryInfo;
+			const isPaginatedQuery = serializedQueryTokenIsPaginated(queryToken);
+			const hasResultReady = isPaginatedQuery
+				? !!this.paginatedClient.localQueryResultByToken(queryToken)
+				: this.client.hasLocalQueryResultByToken(queryToken);
+			if (updatedQueries.includes(queryToken) || (callNewListeners && !hasEverRun && hasResultReady)) {
+				queryInfo.hasEverRun = true;
+				let newValue;
+				try {
+					if (isPaginatedQuery) newValue = this.paginatedClient.localQueryResultByToken(queryToken);
+					else newValue = this.client.localQueryResultByToken(queryToken);
+				} catch (error) {
+					if (!(error instanceof Error)) throw error;
+					if (onError) onError(error, "Second argument to onUpdate onError is reserved for later use");
+					else Promise.reject(error);
+					continue;
+				}
+				callback(newValue, "Second argument to onUpdate callback is reserved for later use");
+			}
+		}
+	}
+	/**
+	 * Execute a mutation function.
+	 *
+	 * @param mutation - A {@link server.FunctionReference} for the public mutation
+	 * to run.
+	 * @param args - An arguments object for the mutation.
+	 * @param options - A {@link MutationOptions} options object for the mutation.
+	 * @returns A promise of the mutation's result.
+	 */
+	async mutation(mutation, args, options) {
+		if (this.disabled) throw new Error("ConvexClient is disabled");
+		return await this.client.mutation(getFunctionName(mutation), args, options);
+	}
+	/**
+	 * Execute an action function.
+	 *
+	 * @param action - A {@link server.FunctionReference} for the public action
+	 * to run.
+	 * @param args - An arguments object for the action.
+	 * @returns A promise of the action's result.
+	 */
+	async action(action, args) {
+		if (this.disabled) throw new Error("ConvexClient is disabled");
+		return await this.client.action(getFunctionName(action), args);
+	}
+	/**
+	 * Fetch a query result once.
+	 *
+	 * @param query - A {@link server.FunctionReference} for the public query
+	 * to run.
+	 * @param args - An arguments object for the query.
+	 * @returns A promise of the query's result.
+	 */
+	async query(query, args) {
+		if (this.disabled) throw new Error("ConvexClient is disabled");
+		const value = this.client.localQueryResult(getFunctionName(query), args);
+		if (value !== void 0) return Promise.resolve(value);
+		return new Promise((resolve, reject) => {
+			const { unsubscribe } = this.onUpdate(
+				query,
+				args,
+				(value2) => {
+					unsubscribe();
+					resolve(value2);
+				},
+				(e) => {
+					unsubscribe();
+					reject(e);
+				},
+			);
+		});
+	}
+	/**
+	 * Get the current {@link ConnectionState} between the client and the Convex
+	 * backend.
+	 *
+	 * @returns The {@link ConnectionState} with the Convex backend.
+	 */
+	connectionState() {
+		if (this.disabled) throw new Error("ConvexClient is disabled");
+		return this.client.connectionState();
+	}
+	/**
+	 * Subscribe to the {@link ConnectionState} between the client and the Convex
+	 * backend, calling a callback each time it changes.
+	 *
+	 * Subscribed callbacks will be called when any part of ConnectionState changes.
+	 * ConnectionState may grow in future versions (e.g. to provide a array of
+	 * inflight requests) in which case callbacks would be called more frequently.
+	 *
+	 * @returns An unsubscribe function to stop listening.
+	 */
+	subscribeToConnectionState(cb) {
+		if (this.disabled) return () => {};
+		return this.client.subscribeToConnectionState(cb);
+	}
+};
+//#endregion
+//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_edfd26dd0f17b26313f65f87fbfa46b0/node_modules/bonobo-plugin-sdk/frontend.js
 /**
- * Bonobo plugin frontend bridge — hand-written browser ESM, no dependencies, no build step.
+ * Bonobo plugin frontend SDK — hand-written browser ESM, no build step.
  *
- * Runs inside the host app's sandboxed plugin iframe (`sandbox="allow-scripts"`, so the document
- * has an opaque origin) for plugin pages and plugin file views alike, and talks to the embedding
- * host app over the current strict postMessage contract: the page announces `bonobo:ready`, the
- * host answers `bonobo:init` with a short-lived scoped bearer token, and from then on the client
- * calls the public `/api/v1/*` API on `apiOrigin` directly with `Authorization: Bearer <token>`.
+ * Runs inside the host app's sandboxed plugin iframe for plugin pages and plugin file views alike.
+ * The comments below say "page" for both kinds, the way the host app's own notes do. Any text a
+ * MEMBER can end up reading must not: it has to say "plugin frame", because a member sitting in a
+ * file view is not on a page and never read these notes. That covers every `new Error(...)` the SDK
+ * rejects with, and the `message` it puts in a watch death — plugin code renders those verbatim.
+ *
+ * The host handshake is a strict postMessage contract: the page announces `bonobo:ready`, the host
+ * answers `bonobo:init` with a short-lived scoped session token (`plu_...`), the page context, and
+ * the Convex deployment URL. From then on the page acts on its own:
+ *
+ * - Public `/api/v1/*` calls go straight to the iframe's own origin with
+ *   `Authorization: Bearer <token>`.
+ * - The `data` and `members` APIs run on the page's OWN Convex client. The client authenticates
+ *   with a short-lived plugin-session JWT, minted by exchanging the session token at the
+ *   same-origin `/plugins-ui/session-jwt` route. The host window is not part of that data path;
+ *   it only answers session-token refreshes over the bridge.
  */
-/** `getToken` refreshes when the token is expired or expires within this margin. */
+/**
+ * `getToken` refreshes when the token is expired or expires within this margin.
+ */
 var TOKEN_EXPIRY_MARGIN_MS = 6e4;
 var READY_RETRY_MS = 500;
 var REFRESH_DEADLINE_MS = 1e4;
-var BRIDGE_NONCE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+var AUTH_WAKE_POLL_MS = 1e3;
+var AUTH_WAKE_GAP_MS = 3e4;
+var NONCE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+var DATA_MAX_NAME_LENGTH = 128;
+var DATA_MAX_KEY_PREFIX_LENGTH = 109;
+var DATA_MAX_LIST_PAGE_SIZE = 100;
+/**
+ * Printable ASCII only (0x21-0x7E, no space) — a literal code range for the same reason.
+ */
+var DATA_KEY_PREFIX_REGEX = /^[\x21-\x7e]+$/;
+/**
+ * The host's roster page size. Its own ceiling, not the document one above: the roster is paged
+ * because each row costs the server two document reads, and that has nothing to do with documents.
+ */
+var MEMBERS_MAX_LIST_PAGE_SIZE = 100;
+/**
+ * Max page-visible data watches (plain or window alike). One more answers a null death with
+ * reason "capacity". These caps are courtesy bounds the page enforces on itself: the server
+ * cannot meter reactive reads per session, so this is what keeps an honest page bounded.
+ * 16, not 8: `scopes.watchMine` tells a plugin to open one ranged read per private scope, and
+ * under 8 slots that guidance died at two scopes with a channel open (three windows plus a
+ * thread watch). Slots and intervals are what shape a page. The server-subscription count
+ * below is only a backstop for buggy or hostile pages — 16 slots × 6 intervals = 96, which
+ * stays under 100.
+ */
+var MAX_WATCH_SUBSCRIPTIONS = 16;
+/**
+ * Key intervals one document window may hold, committed plus pending. Worst case per window:
+ * 6 intervals × 100 docs × 16 KiB values ≈ 9.6 MiB flattened; a realistic chat channel stays
+ * around 1 MiB.
+ */
+var MAX_WINDOW_INTERVALS = 6;
+/**
+ * Server subscriptions across the whole page: one per plain watch, one per window interval,
+ * committed and pending alike. This is a backstop for a buggy or hostile page, not a budget
+ * honest plugins design against. Every subscription re-reads the session's auth docs when a
+ * write invalidates it, so this ceiling bounds that fan-out. Honest pages stay inside the
+ * 16-slot and 6-interval caps above (96 server subscriptions at worst).
+ */
+var MAX_PAGE_SERVER_SUBSCRIPTIONS = 100;
+/**
+ * Reads a host theme off a bridge message.
+ *
+ * The host resolves its colour scales and sends the values under their custom property names,
+ * because a plugin page is a cross-origin document and inherits none of the host's custom
+ * properties. This comes over postMessage, so every field is checked before the page can see it.
+ *
+ * @param {unknown} value
+ * @returns {import("bonobo-plugin-sdk/frontend").BonoboUiTheme | null}
+ */
+function read_theme(value) {
+	if (typeof value !== "object" || value === null) return null;
+	const candidate = value;
+	if (candidate.mode !== "light" && candidate.mode !== "dark") return null;
+	if (typeof candidate.tokens !== "object" || candidate.tokens === null) return null;
+	/** @type {Record<string, string>} */
+	const tokens = {};
+	for (const [name, tokenValue] of Object.entries(candidate.tokens)) {
+		if (typeof tokenValue !== "string") return null;
+		tokens[name] = tokenValue;
+	}
+	return {
+		mode: candidate.mode,
+		tokens,
+	};
+}
+/**
+ * Paints a host theme onto this document.
+ *
+ * The frame is a cross-origin document, so the host's stylesheet never reaches it. The SDK writes
+ * each scale value onto the root element under the app's own custom property name, and puts the
+ * app's `light` / `dark` class on the root too. A plugin stylesheet can then use
+ * `var(--color-base-1-03)` and `.dark &` exactly as the app does, and no plugin has to copy this loop.
+ *
+ * @param {import("bonobo-plugin-sdk/frontend").BonoboUiTheme} theme
+ */
+function apply_theme(theme) {
+	const root = document.documentElement;
+	for (const [name, value] of Object.entries(theme.tokens)) root.style.setProperty(name, value);
+	root.classList.toggle("light", theme.mode === "light");
+	root.classList.toggle("dark", theme.mode === "dark");
+}
+/**
+ * The deaths the SDK can explain. The server answers the same opaque null for every denial, so
+ * these are what the SDK knows on its own: the store said no, the session it holds has run out, or
+ * the connection is not working. A page shows a different thing for each — sign in again is useless
+ * advice when the plugin was uninstalled.
+ */
+var DEATH_DENIED = {
+	reason: "denied",
+	message: "This plugin no longer has access to its data",
+};
+var DEATH_SESSION_EXPIRED = {
+	reason: "session_expired",
+	message: "This plugin session expired",
+};
+var DEATH_UNAVAILABLE = {
+	reason: "unavailable",
+	message: "The plugin data connection is unavailable",
+};
+/**
+ * Reads the exact principal-query shape before plugin code can use it. The Convex query is an
+ * outside boundary even though its generated TypeScript type is known to the host app.
+ *
+ * @param {unknown} value
+ * @returns {import("bonobo-plugin-sdk/frontend").BonoboUiScopePrincipal[] | null | undefined}
+ */
+function read_scope_principals(value) {
+	if (value === null) return null;
+	if (!Array.isArray(value)) return;
+	/** @type {import("bonobo-plugin-sdk/frontend").BonoboUiScopePrincipal[]} */
+	const principals = [];
+	for (const entry of value) {
+		if (typeof entry !== "object" || entry === null) return;
+		const principal = entry;
+		if (
+			typeof principal.userId !== "string" ||
+			principal.userId === "" ||
+			(principal.level !== "member" && principal.level !== "manage")
+		)
+			return;
+		principals.push({
+			userId: principal.userId,
+			level: principal.level,
+		});
+	}
+	return principals;
+}
+/** @returns {import("bonobo-plugin-sdk/frontend").BonoboUiScopePrincipalListResult} */
+function scope_principals_unavailable() {
+	return {
+		_nay: {
+			name: "unavailable",
+			message: "Failed to read who can access this",
+		},
+	};
+}
+/**
+ * Reads the invoke route's success body before plugin code can use it. The route is an outside
+ * boundary; `undefined` means the shape was not the contract, which the caller reports as
+ * unavailable rather than handing the page a half-checked object.
+ *
+ * @param {unknown} value
+ * @returns {{ runId: string, pluginStatus: number, output: string, outputTruncated: boolean } | undefined}
+ */
+function read_backend_invoke_success(value) {
+	if (typeof value !== "object" || value === null) return;
+	const body = value;
+	if (
+		typeof body.runId !== "string" ||
+		typeof body.pluginStatus !== "number" ||
+		typeof body.output !== "string" ||
+		typeof body.outputTruncated !== "boolean"
+	)
+		return;
+	return {
+		runId: body.runId,
+		pluginStatus: body.pluginStatus,
+		output: body.output,
+		outputTruncated: body.outputTruncated,
+	};
+}
 /**
  * Validates the `bonobo:init` context union: `kind: "page"` or `kind: "file_view"`.
  *
@@ -55,6 +3883,7 @@ function is_ui_context(value) {
 	const context = value;
 	if (
 		typeof context.pluginName !== "string" ||
+		typeof context.userId !== "string" ||
 		typeof context.organizationId !== "string" ||
 		typeof context.workspaceId !== "string"
 	)
@@ -76,17 +3905,29 @@ function is_ui_context(value) {
 /**
  * Reads the host origin and frame nonce from the URL fragment. The fragment is available to the
  * page but is not sent in the asset request, cache key, or referrer.
+ *
+ * Why the host passes its origin at all: `postMessage` needs a target origin, and the SDK must
+ * never send with `"*"`. The same SDK file runs under a localhost host and under the deployed
+ * host, so it cannot hardcode the value, and it cannot discover it reliably either
+ * (`document.referrer` depends on the referrer policy, `location.ancestorOrigins` is not in
+ * Firefox). A wrong value only makes the SDK talk to nobody; it never grants anything. The value
+ * is not authentication of the embedder. CSP `frame-ancestors` on the asset response decides who
+ * may embed the frame, and only the host's session mint can produce a token.
+ *
+ * The checks below are format checks, not an allowlist: exactly these two keys, an origin with
+ * no path or query, a UUIDv4 nonce.
  */
 function read_bridge_bootstrap() {
 	const fragment = window.location.hash.slice(1);
-	if (!fragment) throw new Error("Missing host bridge fragment — the page must be embedded by the Bonobo host app");
+	if (!fragment)
+		throw new Error("Missing host bridge fragment — this plugin frame must be embedded by the Bonobo host app");
 	const params = new URLSearchParams(fragment);
 	const parentOrigins = params.getAll("parentOrigin");
-	const bridgeNonces = params.getAll("bridgeNonce");
-	if (params.size !== 2 || parentOrigins.length !== 1 || bridgeNonces.length !== 1)
+	const nonces = params.getAll("nonce");
+	if (params.size !== 2 || parentOrigins.length !== 1 || nonces.length !== 1)
 		throw new Error("Invalid host bridge fragment");
 	const parentOrigin = parentOrigins[0];
-	const bridgeNonce = bridgeNonces[0];
+	const nonce = nonces[0];
 	let parsedParentOrigin;
 	try {
 		parsedParentOrigin = new URL(parentOrigin);
@@ -98,36 +3939,1148 @@ function read_bridge_bootstrap() {
 		parsedParentOrigin.origin !== parentOrigin
 	)
 		throw new Error("Invalid host bridge parent origin");
-	if (!BRIDGE_NONCE_PATTERN.test(bridgeNonce)) throw new Error("Invalid host bridge nonce");
+	if (!NONCE_PATTERN.test(nonce)) throw new Error("Invalid host bridge nonce");
 	return {
 		parentOrigin,
-		bridgeNonce,
+		nonce,
+	};
+}
+/**
+ * Client-side pre-check for watch inputs. Returns a refusal message, or `null` when the inputs
+ * pass. Input that passes here can still die on the server with the same bare null a denial gets.
+ *
+ * @param {{ collection: string, keyPrefix?: string, limit: number }} args
+ */
+function validate_watch_inputs(args) {
+	if (args.collection.length === 0 || args.collection.length > DATA_MAX_NAME_LENGTH)
+		return `Collection names must be 1 to ${DATA_MAX_NAME_LENGTH} characters`;
+	if (
+		args.keyPrefix !== void 0 &&
+		(args.keyPrefix.length > DATA_MAX_KEY_PREFIX_LENGTH || !DATA_KEY_PREFIX_REGEX.test(args.keyPrefix))
+	)
+		return `Key prefixes must be 1 to ${DATA_MAX_KEY_PREFIX_LENGTH} printable ASCII characters`;
+	if (!Number.isInteger(args.limit) || args.limit < 1 || args.limit > DATA_MAX_LIST_PAGE_SIZE)
+		return `Watch limits must be integers from 1 to ${DATA_MAX_LIST_PAGE_SIZE}`;
+	return null;
+}
+/**
+ * One key interval of a document window: one server subscription over
+ * `(gt start .. lte end]`, where a `null` side is unbounded. `docs` is the last delivered array
+ * and `previousFirstKey` the first key of the delivery before it — the only legal split
+ * fencepost, because the current first key may be a brand-new arrival.
+ *
+ * @typedef {object} DocumentsWindowInterval
+ * @property {string | null} start
+ * @property {string | null} end
+ * @property {import("bonobo-plugin-sdk").BonoboPublicDoc[] | null} docs
+ * @property {boolean} truncated
+ * @property {string | undefined} previousFirstKey
+ * @property {import("bonobo-plugin-sdk").BonoboPublicDoc[] | null} previousDocs The array this
+ *   interval held before its latest delivery. `handle_result` overwrites `docs` in place, so the
+ *   outgoing array has to be kept here or it is gone by the time a swap is decided. Read in exactly
+ *   one place — `snapshot_suppressed_docs`, when a pending swap starts.
+ * @property {() => void} stop Dispose the watcher and release its server slot, exactly once.
+ */
+/**
+ * The page-derived watch args. Interval bounds are excluded from this shape on purpose: they are
+ * fenceposts the window manager computes itself and passes as their own parameter, so caller
+ * input can never smuggle a bound into a query.
+ *
+ * @typedef {{ collection: string, keyPrefix?: string, limit: number }} DataWatchQueryArgs
+ * @typedef {{ keyStartExclusive?: string, keyEndInclusive?: string } | null} DataWatchBounds
+ * @typedef {{ value: { docs: import("bonobo-plugin-sdk").BonoboPublicDoc[], truncated: boolean } | null } | { queryError: unknown }} DataWatchOutcome
+ * @typedef {(queryArgs: DataWatchQueryArgs, bounds: DataWatchBounds, onResult: (outcome: DataWatchOutcome) => void) => ({ dispose: () => void } | null)} DataStartWatch
+ */
+/**
+ * A reactive document window: an ordered list of disjoint, contiguous key intervals whose
+ * fenceposts are keys the server itself delivered. The page sees one flattened doc list that
+ * RETAINS loaded history — arrivals grow an interval and splits absorb the overflow, instead of
+ * older docs sliding out of a single capped read.
+ *
+ * The window manager never compares keys. Fenceposts are picked positionally (an element of a
+ * delivered array, or a bound stored at creation), because a JS string comparison disagrees with
+ * the index's UTF-8 order on supplementary-plane characters. Everything order-related is the
+ * server's job.
+ *
+ * Swap discipline: the committed interval list is the only flatten source. At most one pending
+ * replacement (a split or a merge) exists at a time; the replaced intervals stay committed and
+ * keep delivering until every replacement has a result, then the swap commits atomically in the
+ * last delivery's callback. Re-seats bypass this: they keep the interval's delivered docs across
+ * a dispose-and-create, so they are content-neutral by construction.
+ *
+ * Kill rule: any interval — committed or pending — answering `null` or erroring kills the whole
+ * window: every watcher is disposed synchronously, the page gets exactly one `docs: null`, and
+ * later callbacks are ignored. `dead` is checked before every watcher start so an in-flight
+ * grow cannot resurrect a killed window.
+ *
+ * @param {{
+ *   queryArgs: DataWatchQueryArgs,
+ *   start_watch: DataStartWatch,
+ *   acquire_server_slot: () => boolean,
+ *   release_server_slot: () => void,
+ *   page_at_ceiling: (requiredSlots?: number) => boolean,
+ *   post_update: (payload: { docs: import("bonobo-plugin-sdk").BonoboPublicDoc[], hasMore: boolean, atCapacity: boolean, incomplete: boolean }) => void,
+ *   on_dead: (info: { reason: string, message: string }) => void,
+ *   session_expired: () => boolean,
+ * }} deps
+ */
+function create_documents_window(deps) {
+	const state = {
+		/** @type {DocumentsWindowInterval[]} */
+		intervals: [],
+		/**
+		 * `suppressedDocs` holds one flatten source per interval the swap suppresses, taken by value
+		 * when the swap starts and never updated afterwards. The suppressed intervals stay subscribed
+		 * until the commit, so without it a second delivery overwrites their `docs` and the flatten
+		 * grows a hole that `incomplete` is suppressed for.
+		 *
+		 * @type {{ from: number, removeCount: number, replacements: DocumentsWindowInterval[], suppressedDocs: (import("bonobo-plugin-sdk").BonoboPublicDoc[] | null)[] } | null}
+		 */
+		pending: null,
+		queuedLoadOlder: false,
+		/**
+		 * Sticky: set on the first re-seat, when older docs are first known to exist.
+		 */
+		bottomOpen: false,
+		loadingOlder: false,
+		/** @type {DocumentsWindowInterval | null} */
+		awaitingTail: null,
+		/**
+		 * One-shot: a refused load-older reports atCapacity on the next flush.
+		 */
+		forceAtCapacity: false,
+		flushScheduled: false,
+		/** @type {string | null} */
+		lastPayloadJson: null,
+		dead: false,
+	};
+	const stop_all = () => {
+		state.dead = true;
+		for (const interval of state.intervals) interval.stop();
+		for (const interval of state.pending?.replacements ?? []) interval.stop();
+		state.pending = null;
+	};
+	/** @param {{ reason: string, message: string }} info */
+	const kill = (info) => {
+		if (state.dead) return;
+		stop_all();
+		deps.on_dead(info);
+	};
+	/** @param {DocumentsWindowInterval} interval */
+	const start_interval = (interval) => {
+		if (state.dead || !deps.acquire_server_slot()) return false;
+		let stopped = false;
+		const subscription = deps.start_watch(
+			deps.queryArgs,
+			{
+				...(interval.start === null ? {} : { keyStartExclusive: interval.start }),
+				...(interval.end === null ? {} : { keyEndInclusive: interval.end }),
+			},
+			(outcome) => {
+				if (!stopped) handle_result(interval, outcome);
+			},
+		);
+		if (!subscription) {
+			deps.release_server_slot();
+			return false;
+		}
+		interval.stop = () => {
+			if (stopped) return;
+			stopped = true;
+			subscription.dispose();
+			deps.release_server_slot();
+		};
+		return true;
+	};
+	/**
+	 * Whether a truncated bounded interval can be split. The fencepost is the previously
+	 * delivered first key when one exists (so the left side isolates new arrivals); an interval
+	 * whose very first delivery already truncated uses its own last delivered key instead, so
+	 * the repeat-split that extends coverage does not stall waiting for a second delivery.
+	 * Degenerate splits are refused: a fencepost equal to a bound would recreate the parent's
+	 * exact args, and Convex dedupes identical-args subscriptions into one token, which would
+	 * double-flatten the range.
+	 *
+	 * @param {DocumentsWindowInterval} interval
+	 */
+	const split_fencepost = (interval) => {
+		if (interval.docs === null || interval.docs.length === 0) return null;
+		const fencepost = interval.previousFirstKey ?? interval.docs[interval.docs.length - 1].key;
+		if (fencepost === interval.start || fencepost === interval.end) return null;
+		if (new Set(interval.docs.map((doc) => doc.key)).size < 2) return null;
+		return fencepost;
+	};
+	const window_interval_count = () => state.intervals.length + (state.pending?.replacements.length ?? 0);
+	/**
+	 * The count the window will hold once the pending swap commits. `window_interval_count` is the
+	 * gross count — it counts the replacements while their parents are still committed — which is
+	 * what `reconcile` and the load-older reservation need, because those are asking whether another
+	 * subscription fits right now. `incomplete` asks a different question: whether a repair is still
+	 * possible after this swap lands, so it needs the net count. A split is +1 and a merge is -1.
+	 */
+	const settled_interval_count = () =>
+		state.intervals.length + (state.pending ? state.pending.replacements.length - state.pending.removeCount : 0);
+	/**
+	 * The flatten source for an interval a pending swap suppresses, taken once by value when the swap
+	 * starts. `interval.truncated` is the discriminator, and the two cases need opposite answers. A
+	 * split parent is truncated by construction, so its live array is the short one that would show a
+	 * hole — serve the array it held before that delivery. A merge member is never truncated: it
+	 * shrank because documents were physically deleted, so its live array is correct and serving the
+	 * retained one would put deleted documents back on screen for a round trip.
+	 *
+	 * The fallback covers an interval whose FIRST delivery truncated, which has no previous array.
+	 * Serving `[]` there would make every document in its range vanish for a round trip, which is the
+	 * failure this whole mechanism exists to prevent, so it declines to improve that case instead.
+	 *
+	 * @param {DocumentsWindowInterval} interval
+	 */
+	const snapshot_suppressed_docs = (interval) =>
+		interval.truncated ? (interval.previousDocs ?? interval.docs) : interval.docs;
+	/**
+	 * @param {number} index
+	 * @returns {import("bonobo-plugin-sdk").BonoboPublicDoc[] | null | undefined} The snapshot when a
+	 *   pending swap suppresses this index, `undefined` when it does not.
+	 */
+	const suppressed_docs_at = (index) => {
+		if (!state.pending) return;
+		const offset = index - state.pending.from;
+		if (offset < 0 || offset >= state.pending.removeCount) return;
+		return state.pending.suppressedDocs[offset];
+	};
+	const compute_payload = () => {
+		const docs = state.intervals.flatMap((interval, index) => {
+			const suppressed = suppressed_docs_at(index);
+			return (suppressed === void 0 ? interval.docs : suppressed) ?? [];
+		});
+		const last = state.intervals[state.intervals.length - 1];
+		return {
+			docs,
+			hasMore: state.bottomOpen && !(last !== void 0 && last.end === null && last.docs !== null && !last.truncated),
+			atCapacity: state.forceAtCapacity || state.intervals.length >= MAX_WINDOW_INTERVALS || deps.page_at_ceiling(),
+			incomplete: state.intervals.some((interval, index) => {
+				if (interval.end === null || !interval.truncated || interval.docs === null) return false;
+				if (state.pending && index >= state.pending.from && index < state.pending.from + state.pending.removeCount)
+					return false;
+				return (
+					split_fencepost(interval) === null ||
+					settled_interval_count() + 1 > MAX_WINDOW_INTERVALS ||
+					deps.page_at_ceiling(2)
+				);
+			}),
+		};
+	};
+	/**
+	 * One flush per microtask, and a post only when the WHOLE payload changed. Comparing docs
+	 * alone would swallow the hasMore transition, because a re-seat is content-neutral on purpose.
+	 */
+	const schedule_flush = () => {
+		if (state.flushScheduled || state.dead) return;
+		state.flushScheduled = true;
+		queueMicrotask(() => {
+			state.flushScheduled = false;
+			if (state.dead) return;
+			const payload = compute_payload();
+			state.forceAtCapacity = false;
+			const payloadJson = JSON.stringify(payload);
+			if (payloadJson === state.lastPayloadJson) return;
+			state.lastPayloadJson = payloadJson;
+			deps.post_update(payload);
+		});
+	};
+	const report_at_capacity = () => {
+		if (state.dead) return;
+		state.forceAtCapacity = true;
+		schedule_flush();
+	};
+	/**
+	 * Re-seat an unbounded interval that just delivered truncated: pin its lower side to its own
+	 * largest delivered key and restart the watcher over that closed range. The delivered docs
+	 * stay on the interval, so the swap is content-neutral and needs no pending machinery. From
+	 * here on, arrivals inside the range grow the interval instead of sliding docs out of a
+	 * capped read, and the range below the fencepost belongs to load-older.
+	 *
+	 * @param {DocumentsWindowInterval} interval
+	 */
+	const reseat_tail = (interval) => {
+		const docs = interval.docs;
+		const fencepost = docs[docs.length - 1].key;
+		interval.stop();
+		interval.end = fencepost;
+		interval.truncated = false;
+		state.bottomOpen = true;
+		if (!start_interval(interval)) kill(DEATH_UNAVAILABLE);
+	};
+	const execute_load_older = () => {
+		if (state.dead || state.loadingOlder || state.pending || !compute_payload().hasMore) return;
+		const last = state.intervals[state.intervals.length - 1];
+		if (!last || last.end === null) return;
+		if (window_interval_count() + 1 > MAX_WINDOW_INTERVALS || deps.page_at_ceiling()) {
+			report_at_capacity();
+			return;
+		}
+		/**
+		 * The new tail starts at the STORED bound, not at a delivered key — the last interval's
+		 * delivered array can be empty after physical deletes, but its bound was a real key once
+		 * and stays a valid fencepost.
+		 *
+		 * @type {DocumentsWindowInterval}
+		 */
+		const tail = {
+			start: last.end,
+			end: null,
+			docs: null,
+			truncated: false,
+			previousFirstKey: void 0,
+			previousDocs: null,
+			stop: () => {},
+		};
+		if (!start_interval(tail)) {
+			report_at_capacity();
+			return;
+		}
+		state.intervals.push(tail);
+		state.loadingOlder = true;
+		state.awaitingTail = tail;
+	};
+	/**
+	 * The single re-evaluation point after every delivery and commit: re-seat a truncated
+	 * unbounded tail, run a queued load-older, then start at most one pending swap — a split of
+	 * the first truncated bounded interval, or a merge of the first adjacent pair small enough
+	 * to share one subscription again.
+	 */
+	const reconcile = () => {
+		if (state.dead) return;
+		const last = state.intervals[state.intervals.length - 1];
+		if (last && last.end === null && last.docs !== null && last.truncated) {
+			reseat_tail(last);
+			if (state.dead) return;
+		}
+		if (state.pending) return;
+		if (state.queuedLoadOlder) {
+			state.queuedLoadOlder = false;
+			execute_load_older();
+		}
+		for (const [index, interval] of state.intervals.entries()) {
+			if (interval.end === null || !interval.truncated || interval.docs === null) continue;
+			const fencepost = split_fencepost(interval);
+			if (fencepost === null) continue;
+			if (window_interval_count() + 1 > MAX_WINDOW_INTERVALS) break;
+			/** @type {DocumentsWindowInterval} */
+			const left = {
+				start: interval.start,
+				end: fencepost,
+				docs: null,
+				truncated: false,
+				previousFirstKey: void 0,
+				previousDocs: null,
+				stop: () => {},
+			};
+			/** @type {DocumentsWindowInterval} */
+			const right = {
+				start: fencepost,
+				end: interval.end,
+				docs: null,
+				truncated: false,
+				previousFirstKey: void 0,
+				previousDocs: null,
+				stop: () => {},
+			};
+			if (!start_interval(left)) break;
+			if (!start_interval(right)) {
+				left.stop();
+				break;
+			}
+			state.pending = {
+				from: index,
+				removeCount: 1,
+				replacements: [left, right],
+				suppressedDocs: [snapshot_suppressed_docs(interval)],
+			};
+			return;
+		}
+		for (let index = 0; index + 1 < state.intervals.length; index += 1) {
+			const first = state.intervals[index];
+			const second = state.intervals[index + 1];
+			if (first.docs === null || second.docs === null) continue;
+			if (first.docs.length + second.docs.length >= deps.queryArgs.limit) continue;
+			/** @type {DocumentsWindowInterval} */
+			const merged = {
+				start: first.start,
+				end: second.end,
+				docs: null,
+				truncated: false,
+				previousFirstKey: void 0,
+				previousDocs: null,
+				stop: () => {},
+			};
+			if (!start_interval(merged)) break;
+			state.pending = {
+				from: index,
+				removeCount: 2,
+				replacements: [merged],
+				suppressedDocs: [snapshot_suppressed_docs(first), snapshot_suppressed_docs(second)],
+			};
+			return;
+		}
+	};
+	/**
+	 * All-or-nothing: the swap commits only once every replacement has a delivered result, so
+	 * the flattened list never shows a partially re-read range.
+	 */
+	const commit_pending = () => {
+		const pending = state.pending;
+		state.pending = null;
+		const replaced = state.intervals.splice(pending.from, pending.removeCount, ...pending.replacements);
+		for (const interval of replaced) interval.stop();
+		schedule_flush();
+		reconcile();
+	};
+	/**
+	 * @param {DocumentsWindowInterval} interval
+	 * @param {DataWatchOutcome} outcome
+	 */
+	const handle_result = (interval, outcome) => {
+		if (state.dead) return;
+		if ("queryError" in outcome) {
+			const info = deps.session_expired() ? DEATH_SESSION_EXPIRED : DEATH_UNAVAILABLE;
+			if (info === DEATH_UNAVAILABLE)
+				console.error("[bonobo-plugin-sdk] Plugin data window interval failed:", outcome.queryError);
+			kill(info);
+			return;
+		}
+		if (outcome.value === null) {
+			kill(DEATH_DENIED);
+			return;
+		}
+		interval.previousFirstKey = interval.docs?.[0]?.key;
+		interval.previousDocs = interval.docs;
+		interval.docs = outcome.value.docs;
+		interval.truncated = outcome.value.truncated;
+		if (state.awaitingTail === interval) {
+			state.awaitingTail = null;
+			state.loadingOlder = false;
+		}
+		if (state.pending?.replacements.includes(interval)) {
+			if (state.pending.replacements.every((replacement) => replacement.docs !== null)) commit_pending();
+			return;
+		}
+		schedule_flush();
+		reconcile();
+	};
+	/**
+	 * START: one unbounded subscription, exactly the shape of a plain capped watch. The window
+	 * machinery only engages when this first interval reports truncated.
+	 *
+	 * @type {DocumentsWindowInterval}
+	 */
+	const head = {
+		start: null,
+		end: null,
+		docs: null,
+		truncated: false,
+		previousFirstKey: void 0,
+		previousDocs: null,
+		stop: () => {},
+	};
+	if (!start_interval(head)) return null;
+	state.intervals.push(head);
+	return {
+		load_older: () => {
+			if (state.dead) return;
+			if (state.pending) {
+				state.queuedLoadOlder = true;
+				return;
+			}
+			execute_load_older();
+		},
+		dispose: () => {
+			if (state.dead) return;
+			stop_all();
+		},
+	};
+}
+/**
+ * Builds the client's `data`, `members` and `scopes` APIs over an injectable reactive-read primitive.
+ * `bonobo_ui_connect` wires it to the page's own Convex client. Plugin code should use the client
+ * from `bonobo_ui_connect`, never call this directly — which is why this is NOT exported. The
+ * package publishes `frontend.js` next to a hand-written `frontend.d.ts`, and nothing compares
+ * the two (`typecheck` runs `tsc --skipLibCheck` over `frontend.js` alone), so an `export` here
+ * would ship a runtime symbol the type surface does not declare. The SDK test suite reaches this
+ * through `bonobo_ui_connect` and drives the seam from the fake Convex client instead.
+ *
+ * The `start_watch` dep starts one reactive read of the plugin's document store. `onResult`
+ * receives `{ value }` (the query answer — `null` is the store's denial) or `{ queryError }`,
+ * and results NEVER arrive synchronously from the start call, cached ones included. It returns
+ * `{ dispose }`, or `null` when the read cannot start at all.
+ *
+ * @param {{
+ *   start_watch: DataStartWatch,
+ *   start_recent_watch: (queryArgs: Record<string, unknown>, onResult: (outcome: { value: { docs: import("bonobo-plugin-sdk").BonoboPublicDoc[], truncated: boolean } | null } | { queryError: unknown }) => void) => { dispose: () => void } | null,
+ *   start_changes_watch: (queryArgs: Record<string, unknown>, onResult: (outcome: { value: { docs: import("bonobo-plugin-sdk").BonoboPublicDoc[], truncated: boolean } | null } | { queryError: unknown }) => void) => { dispose: () => void } | null,
+ *   run_user_write: (op: "append" | "put" | "remove" | "putOwned" | "removeOwned", fields: Record<string, unknown>) => Promise<unknown>,
+ *   resolve_member_display: (userIds: string[]) => Promise<{ members: Record<string, string | null> } | null>,
+ *   list_members: (limit: number, cursor: string | null) => Promise<{ members: import("bonobo-plugin-sdk/frontend").BonoboUiMember[], cursor: string | null } | { refusal: string } | null>,
+ *   run_manage_scope: (action: Record<string, unknown>) => Promise<unknown>,
+ *   list_scope_principals: (scopeId: string) => Promise<unknown>,
+ *   start_my_scopes_watch: (onResult: (outcome: { value: import("bonobo-plugin-sdk/frontend").BonoboUiScope[] | null } | { queryError: unknown }) => void) => { dispose: () => void } | null,
+ *   session_expired: () => boolean,
+ * }} deps
+ * @returns {{ data: import("bonobo-plugin-sdk/frontend").BonoboUiFrontendClient["data"], members: import("bonobo-plugin-sdk/frontend").BonoboUiFrontendClient["members"], scopes: import("bonobo-plugin-sdk/frontend").BonoboUiFrontendClient["scopes"] }}
+ */
+function bonobo_ui_create_data_api(deps) {
+	/**
+	 * Live page-visible subscriptions: a plain watch and a document window each hold one entry.
+	 *
+	 * @type {Set<object>}
+	 */
+	const registrations = /* @__PURE__ */ new Set();
+	let serverSubscriptionCount = 0;
+	const acquire_server_slot = () => {
+		if (serverSubscriptionCount >= MAX_PAGE_SERVER_SUBSCRIPTIONS) return false;
+		serverSubscriptionCount += 1;
+		return true;
+	};
+	const release_server_slot = () => {
+		serverSubscriptionCount -= 1;
+	};
+	/**
+	 * `requiredSlots` defaults to 1, which is the same test as `count >= MAX`. A caller that is about
+	 * to start more than one watcher passes how many it needs, so it can tell "no room at all" apart
+	 * from "no room for the pair I am about to start".
+	 *
+	 * @param {number} [requiredSlots]
+	 */
+	const page_at_ceiling = (requiredSlots = 1) =>
+		serverSubscriptionCount + requiredSlots > MAX_PAGE_SERVER_SUBSCRIPTIONS;
+	/**
+	 * A death decided right in the watch call still must arrive like a real one: after the
+	 * caller has its unsubscribe handle, on the same async timing a cached server answer has.
+	 *
+	 * @param {(docs: null, info?: { reason: string, message: string }) => void} onUpdate
+	 * @param {{ reason: string, message: string }} [info]
+	 */
+	const deliver_death_async = (onUpdate, info) => {
+		setTimeout(() => {
+			if (info) onUpdate(null, info);
+			else onUpdate(null);
+		}, 0);
+	};
+	/** @param {(docs: null, info?: { reason: string, message: string }) => void} onUpdate */
+	const refuse_capacity = (onUpdate) => {
+		console.warn("[bonobo-plugin-sdk] Data watch refused, subscription cap reached");
+		deliver_death_async(onUpdate, {
+			reason: "capacity",
+			message: "Subscription limit reached for this plugin frame",
+		});
+	};
+	/**
+	 * Hold one page-visible subscription and turn every way it can end into the page's death
+	 * callback.
+	 *
+	 * Two doors need this and they must not drift: a missed `release_server_slot` leaks a slot the
+	 * page never gets back, and the frame then refuses later watches for no visible reason. `start`
+	 * owns what is being read; everything here is the bookkeeping around it.
+	 *
+	 * @template TValue, TPayload
+	 * @param {{
+	 *   start: (onOutcome: (outcome: { value: TValue | null } | { queryError: unknown }) => void) => { dispose: () => void } | null,
+	 *   onUpdate: (payload: TPayload | null, info?: { reason: string, message: string }) => void,
+	 *   deliver: (value: TValue) => TPayload,
+	 *   failureLabel: string,
+	 * }} args
+	 * @returns {() => void}
+	 */
+	const start_registered_watch = (args) => {
+		if (registrations.size >= MAX_WATCH_SUBSCRIPTIONS || page_at_ceiling()) {
+			refuse_capacity(args.onUpdate);
+			return () => {};
+		}
+		if (!acquire_server_slot()) {
+			refuse_capacity(args.onUpdate);
+			return () => {};
+		}
+		const entry = {};
+		registrations.add(entry);
+		/** @type {{ dispose: () => void } | null} */
+		let subscription = null;
+		/**
+		 * Death and unsubscribe share this: the registration entry decides liveness, so a
+		 * late delivery or a second unsubscribe after either path is a no-op.
+		 */
+		const stop = () => {
+			if (!registrations.delete(entry)) return;
+			subscription?.dispose();
+			release_server_slot();
+		};
+		subscription = args.start((outcome) => {
+			if (!registrations.has(entry)) return;
+			if ("queryError" in outcome) {
+				const info = deps.session_expired() ? DEATH_SESSION_EXPIRED : DEATH_UNAVAILABLE;
+				if (info === DEATH_UNAVAILABLE)
+					console.error(`[bonobo-plugin-sdk] Plugin ${args.failureLabel} failed:`, outcome.queryError);
+				stop();
+				args.onUpdate(null, info);
+				return;
+			}
+			if (outcome.value === null) {
+				stop();
+				args.onUpdate(null, DEATH_DENIED);
+				return;
+			}
+			args.onUpdate(args.deliver(outcome.value));
+		});
+		if (!subscription) {
+			stop();
+			console.error(`[bonobo-plugin-sdk] Plugin ${args.failureLabel} could not start`);
+			deliver_death_async(args.onUpdate);
+			return () => {};
+		}
+		return function unsubscribe() {
+			stop();
+		};
+	};
+	/** @type {import("bonobo-plugin-sdk/frontend").BonoboUiFrontendClient["data"]} */
+	const data = {
+		watch(opts, onUpdate) {
+			const invalid = validate_watch_inputs({
+				collection: opts.collection,
+				...(opts.keyPrefix === void 0 ? {} : { keyPrefix: opts.keyPrefix }),
+				limit: opts.limit,
+			});
+			if (invalid) {
+				deliver_death_async(onUpdate, {
+					reason: "invalid",
+					message: invalid,
+				});
+				return () => {};
+			}
+			return start_registered_watch({
+				start: (onOutcome) =>
+					deps.start_watch(
+						{
+							collection: opts.collection,
+							...(opts.keyPrefix === void 0 ? {} : { keyPrefix: opts.keyPrefix }),
+							limit: opts.limit,
+						},
+						null,
+						onOutcome,
+					),
+				onUpdate,
+				deliver: (value) => ({
+					docs: value.docs,
+					truncated: value.truncated,
+				}),
+				failureLabel: "data watch",
+			});
+		},
+		watchRecent(opts, onUpdate) {
+			const invalid = validate_watch_inputs({
+				collection: opts.collection,
+				limit: opts.limit,
+			});
+			if (invalid) {
+				deliver_death_async(onUpdate, {
+					reason: "invalid",
+					message: invalid,
+				});
+				return () => {};
+			}
+			return start_registered_watch({
+				start: (onOutcome) =>
+					deps.start_recent_watch(
+						{
+							collection: opts.collection,
+							limit: opts.limit,
+							...(opts.order === void 0 ? {} : { order: opts.order }),
+							...(opts.since === void 0 ? {} : { since: opts.since }),
+							...(opts.before === void 0 ? {} : { before: opts.before }),
+							...(opts.scopeId === void 0 ? {} : { scopeId: opts.scopeId }),
+						},
+						onOutcome,
+					),
+				onUpdate,
+				deliver: (value) => ({
+					docs: value.docs,
+					truncated: value.truncated,
+				}),
+				failureLabel: "recent watch",
+			});
+		},
+		watchChanges(opts, onUpdate) {
+			const invalid = validate_watch_inputs({
+				collection: opts.collection,
+				limit: opts.limit,
+			});
+			if (invalid) {
+				deliver_death_async(onUpdate, {
+					reason: "invalid",
+					message: invalid,
+				});
+				return () => {};
+			}
+			return start_registered_watch({
+				start: (onOutcome) =>
+					deps.start_changes_watch(
+						{
+							collection: opts.collection,
+							limit: opts.limit,
+							...(opts.updatedSince === void 0 ? {} : { updatedSince: opts.updatedSince }),
+							...(opts.scopeId === void 0 ? {} : { scopeId: opts.scopeId }),
+						},
+						onOutcome,
+					),
+				onUpdate,
+				deliver: (value) => ({
+					docs: value.docs,
+					truncated: value.truncated,
+				}),
+				failureLabel: "changes watch",
+			});
+		},
+		watchWindow(opts, onUpdate) {
+			const inertHandle = {
+				loadOlder() {},
+				unsubscribe() {},
+			};
+			const invalid = validate_watch_inputs({
+				collection: opts.collection,
+				...(opts.keyPrefix === void 0 ? {} : { keyPrefix: opts.keyPrefix }),
+				limit: opts.pageSize,
+			});
+			if (invalid) {
+				deliver_death_async(onUpdate, {
+					reason: "invalid",
+					message: invalid,
+				});
+				return inertHandle;
+			}
+			if (registrations.size >= MAX_WATCH_SUBSCRIPTIONS || page_at_ceiling()) {
+				refuse_capacity(onUpdate);
+				return inertHandle;
+			}
+			const entry = {};
+			registrations.add(entry);
+			const documentsWindow = create_documents_window({
+				queryArgs: {
+					collection: opts.collection,
+					...(opts.keyPrefix === void 0 ? {} : { keyPrefix: opts.keyPrefix }),
+					limit: opts.pageSize,
+				},
+				start_watch: deps.start_watch,
+				acquire_server_slot,
+				release_server_slot,
+				page_at_ceiling,
+				post_update: (payload) => onUpdate(payload),
+				on_dead: (info) => {
+					registrations.delete(entry);
+					onUpdate(null, info);
+				},
+				session_expired: deps.session_expired,
+			});
+			if (!documentsWindow) {
+				registrations.delete(entry);
+				console.error("[bonobo-plugin-sdk] Plugin data window could not start");
+				deliver_death_async(onUpdate);
+				return inertHandle;
+			}
+			return {
+				loadOlder() {
+					if (registrations.has(entry)) documentsWindow.load_older();
+				},
+				unsubscribe() {
+					if (registrations.delete(entry)) documentsWindow.dispose();
+				},
+			};
+		},
+		append(opts) {
+			return run_write("append", {
+				collection: opts.collection,
+				...(opts.keyPrefix === void 0 ? {} : { keyPrefix: opts.keyPrefix }),
+				value: opts.value,
+				...(opts.clientRequestId === void 0 ? {} : { clientRequestId: opts.clientRequestId }),
+			});
+		},
+		put(opts) {
+			return run_write("put", {
+				collection: opts.collection,
+				key: opts.key,
+				value: opts.value,
+				...(opts.expectedRevision === void 0 ? {} : { expectedRevision: opts.expectedRevision }),
+			});
+		},
+		remove(opts) {
+			return run_write("remove", {
+				collection: opts.collection,
+				key: opts.key,
+				...(opts.expectedRevision === void 0 ? {} : { expectedRevision: opts.expectedRevision }),
+			});
+		},
+		putOwned(opts) {
+			return run_write("putOwned", {
+				collection: opts.collection,
+				key: opts.key,
+				value: opts.value,
+				...(opts.expectedRevision === void 0 ? {} : { expectedRevision: opts.expectedRevision }),
+			});
+		},
+		removeOwned(opts) {
+			return run_write("removeOwned", {
+				collection: opts.collection,
+				key: opts.key,
+				...(opts.expectedRevision === void 0 ? {} : { expectedRevision: opts.expectedRevision }),
+			});
+		},
+	};
+	/**
+	 * Every write resolves with the store door's Result as-is, `_yay` and `_nay` alike. A thrown
+	 * call (network loss, a payload the Convex client cannot serialize) resolves the stable
+	 * `unavailable` `_nay`; the real cause stays in the log.
+	 *
+	 * @param {"append" | "put" | "remove" | "putOwned" | "removeOwned"} op
+	 * @param {Record<string, unknown>} fields
+	 */
+	function run_write(op, fields) {
+		return Promise.resolve()
+			.then(() => deps.run_user_write(op, fields))
+			.catch((error) => {
+				console.error("[bonobo-plugin-sdk] Plugin data write failed:", error);
+				return {
+					_nay: {
+						name: "unavailable",
+						message: "Failed to write plugin data",
+					},
+				};
+			});
+	}
+	/** @type {import("bonobo-plugin-sdk/frontend").BonoboUiFrontendClient["members"]} */
+	const members = {
+		resolve(userIds) {
+			return Promise.resolve()
+				.then(() => deps.resolve_member_display(userIds))
+				.then((result) => {
+					return result === null ? {} : result.members;
+				})
+				.catch((error) => {
+					console.error("[bonobo-plugin-sdk] Failed to resolve plugin member names:", error);
+					return {};
+				});
+		},
+		list(opts) {
+			if (!Number.isInteger(opts.limit) || opts.limit < 1 || opts.limit > MEMBERS_MAX_LIST_PAGE_SIZE)
+				return Promise.resolve({
+					_nay: {
+						name: "invalid",
+						message: `Member list limits must be integers from 1 to ${MEMBERS_MAX_LIST_PAGE_SIZE}`,
+					},
+				});
+			return Promise.resolve()
+				.then(() => deps.list_members(opts.limit, opts.cursor ?? null))
+				.then((result) => {
+					if (result === null)
+						return {
+							_nay: {
+								name: DEATH_DENIED.reason,
+								message: "This plugin no longer has access to this workspace",
+							},
+						};
+					if ("refusal" in result)
+						return {
+							_nay: {
+								name: "not_consented",
+								message: "This workspace has not granted this plugin the member list",
+							},
+						};
+					return {
+						_yay: {
+							members: result.members,
+							cursor: result.cursor,
+						},
+					};
+				})
+				.catch((error) => {
+					const info = deps.session_expired() ? DEATH_SESSION_EXPIRED : DEATH_UNAVAILABLE;
+					if (info === DEATH_UNAVAILABLE)
+						console.error("[bonobo-plugin-sdk] Failed to list plugin workspace members:", error);
+					return {
+						_nay: {
+							name: info.reason,
+							message: info.message,
+						},
+					};
+				});
+		},
+	};
+	/**
+	 * Runs one scope change. Same resolve-never-reject contract as a data write, with a named
+	 * unavailable fallback so the page can tell an uncertain call from a backend refusal.
+	 *
+	 * @param {Record<string, unknown>} action
+	 * @returns {Promise<import("bonobo-plugin-sdk/frontend").BonoboUiScopeResult>}
+	 */
+	function run_scope(action) {
+		return Promise.resolve()
+			.then(() => deps.run_manage_scope(action))
+			.then((result) => result)
+			.catch((error) => {
+				console.error("[bonobo-plugin-sdk] Plugin scope change failed:", error);
+				return {
+					_nay: {
+						name: "unavailable",
+						message: "Failed to change who can read this",
+					},
+				};
+			});
+	}
+	return {
+		data,
+		members,
+		scopes: {
+			create(opts) {
+				return run_scope({
+					kind: "create",
+					scopeId: opts.scopeId,
+					collections: opts.collections,
+					keyPrefix: opts.keyPrefix,
+				});
+			},
+			createWithDocument(opts) {
+				return run_scope({
+					kind: "create_with_document",
+					scopeId: opts.scopeId,
+					collections: opts.collections,
+					keyPrefix: opts.keyPrefix,
+					principals: opts.principals,
+					document: opts.document,
+				});
+			},
+			setPrincipal(opts) {
+				return run_scope({
+					kind: "set_principal",
+					scopeId: opts.scopeId,
+					userId: opts.userId,
+					level: opts.level,
+				});
+			},
+			removePrincipal(opts) {
+				return run_scope({
+					kind: "remove_principal",
+					scopeId: opts.scopeId,
+					userId: opts.userId,
+					...(opts.expectedPrincipalCount === void 0 ? {} : { expectedPrincipalCount: opts.expectedPrincipalCount }),
+				});
+			},
+			delete(opts) {
+				return run_scope({
+					kind: "delete",
+					scopeId: opts.scopeId,
+					...(opts.expectedPrincipalCount === void 0 ? {} : { expectedPrincipalCount: opts.expectedPrincipalCount }),
+				});
+			},
+			listPrincipals(opts) {
+				return Promise.resolve()
+					.then(() => deps.list_scope_principals(opts.scopeId))
+					.then((value) => {
+						const principals = read_scope_principals(value);
+						if (principals === void 0) {
+							console.error("[bonobo-plugin-sdk] Plugin scope principals response was invalid");
+							return scope_principals_unavailable();
+						}
+						return { _yay: principals };
+					})
+					.catch((error) => {
+						console.error("[bonobo-plugin-sdk] Failed to read plugin scope principals:", error);
+						return scope_principals_unavailable();
+					});
+			},
+			watchMine(onUpdate) {
+				return start_registered_watch({
+					start: (onOutcome) => deps.start_my_scopes_watch(onOutcome),
+					onUpdate,
+					deliver: (value) => value,
+					failureLabel: "scope watch",
+				});
+			},
+		},
+	};
+}
+/**
+ * Wires the data api's deps to the page's own Convex client.
+ *
+ * - `start_watch` adapts the client's `onUpdate`: the client delivers an already-cached result
+ *   on a `setTimeout(0)`, so results never come back synchronously from the start call —
+ *   exactly the delivery contract `bonobo_ui_create_data_api` requires. `onError` is always
+ *   passed, because without it the client turns a query error into an unhandled rejection
+ *   instead of a callback.
+ * - The write and member doors read everything else they need from the session named by the
+ *   JWT, so the args carry only the operation itself.
+ *
+ * @param {import("convex/browser").ConvexClient} convexClient
+ */
+function create_convex_data_deps(convexClient) {
+	/** @type {DataStartWatch} */
+	const start_watch = (queryArgs, bounds, onResult) => {
+		try {
+			const unsubscribe = convexClient.onUpdate(
+				anyApi.plugins_data.watch_documents,
+				{
+					...queryArgs,
+					...(bounds?.keyStartExclusive === void 0 ? {} : { keyStartExclusive: bounds.keyStartExclusive }),
+					...(bounds?.keyEndInclusive === void 0 ? {} : { keyEndInclusive: bounds.keyEndInclusive }),
+				},
+				(value) => onResult({ value }),
+				(queryError) => onResult({ queryError }),
+			);
+			return { dispose: () => void unsubscribe() };
+		} catch {
+			return null;
+		}
+	};
+	return {
+		start_watch,
+		/**
+		 * @param {Record<string, unknown>} queryArgs
+		 * @param {(outcome: { value: any } | { queryError: unknown }) => void} onResult
+		 */
+		start_recent_watch: (queryArgs, onResult) => {
+			try {
+				const unsubscribe = convexClient.onUpdate(
+					anyApi.plugins_data.watch_recent,
+					queryArgs,
+					(value) => onResult({ value }),
+					(queryError) => onResult({ queryError }),
+				);
+				return { dispose: () => void unsubscribe() };
+			} catch {
+				return null;
+			}
+		},
+		/**
+		 * @param {Record<string, unknown>} queryArgs
+		 * @param {(outcome: { value: any } | { queryError: unknown }) => void} onResult
+		 */
+		start_changes_watch: (queryArgs, onResult) => {
+			try {
+				const unsubscribe = convexClient.onUpdate(
+					anyApi.plugins_data.watch_changes,
+					queryArgs,
+					(value) => onResult({ value }),
+					(queryError) => onResult({ queryError }),
+				);
+				return { dispose: () => void unsubscribe() };
+			} catch {
+				return null;
+			}
+		},
+		/**
+		 * @param {"append" | "put" | "remove" | "putOwned" | "removeOwned"} op
+		 * @param {Record<string, unknown>} fields
+		 */
+		run_user_write: (op, fields) => {
+			switch (op) {
+				case "append":
+					return convexClient.mutation(anyApi.plugins_data.user_append_document, fields);
+				case "put":
+					return convexClient.mutation(anyApi.plugins_data.user_put_document, fields);
+				case "remove":
+					return convexClient.mutation(anyApi.plugins_data.user_remove_document, fields);
+				case "putOwned":
+					return convexClient.mutation(anyApi.plugins_data.user_put_owned_document, fields);
+				case "removeOwned":
+					return convexClient.mutation(anyApi.plugins_data.user_remove_owned_document, fields);
+			}
+		},
+		/** @param {string[]} userIds */
+		resolve_member_display: (userIds) => convexClient.query(anyApi.plugins_data.resolve_member_display, { userIds }),
+		/**
+		 * @param {number} limit
+		 * @param {string | null} cursor
+		 */
+		list_members: (limit, cursor) =>
+			convexClient.query(anyApi.plugins_data.list_members, {
+				limit,
+				cursor,
+			}),
+		/** @param {Record<string, unknown>} action */
+		run_manage_scope: (action) => convexClient.mutation(anyApi.plugins_data.user_manage_scope, { action }),
+		/** @param {string} scopeId */
+		list_scope_principals: (scopeId) => convexClient.query(anyApi.plugins_data.watch_scope_principals, { scopeId }),
+		/** @param {(outcome: { value: any } | { queryError: unknown }) => void} onResult */
+		start_my_scopes_watch: (onResult) => {
+			try {
+				const unsubscribe = convexClient.onUpdate(
+					anyApi.plugins_data.watch_my_scopes,
+					{},
+					(value) => onResult({ value }),
+					(queryError) => onResult({ queryError }),
+				);
+				return { dispose: () => void unsubscribe() };
+			} catch {
+				return null;
+			}
+		},
 	};
 }
 /**
  * Connects the page to the embedding host app. It installs one shared `message` listener (for
- * init and token responses), posts `{ type: "bonobo:ready", bridgeNonce }` to `window.parent`,
+ * init and token responses), posts `{ type: "bonobo:ready", nonce }` to `window.parent`,
  * and resolves with the frontend client when the host's `bonobo:init` arrives. `bonobo:init`
  * messages after the first are ignored.
  *
  * The host puts its canonical HTTP(S) origin and a fresh frame nonce in the URL fragment. The SDK
  * validates both before connecting, sends ready only to that exact origin, and accepts host
- * messages only from that origin, `window.parent`, and the matching nonce. The token travels over
- * postMessage only and is never placed in a URL.
+ * messages only from that origin, `window.parent`, and the matching nonce. The session token
+ * travels over postMessage only and is never placed in a URL.
+ *
+ * The nonce is a conversation id for one mount of one iframe, not a secret. The host makes a new
+ * one per mount and puts it in the URL, so a new mount always loads a fresh document. It does
+ * three jobs: the host releases the token only after a ready message that carries it, which
+ * proves this document read this mount's fragment; a late init or token from a previous mount
+ * carries the old nonce and is dropped; and it backs up the `window.parent` check, because a
+ * window keeps its identity across navigations while the document behind it changes.
+ *
+ * On init the SDK also opens the page's own Convex client against the init's `convexUrl`. The
+ * client authenticates with short-lived plugin-session JWTs minted by exchanging the session
+ * token at the same-origin `/plugins-ui/session-jwt` route; the `data` and `members` APIs run on
+ * that client directly.
+ *
+ * Token lifetimes, so plugin code never handles refresh itself: the session token lives 30
+ * minutes; `getToken` refreshes it through the host when it is expired or within 60 seconds of
+ * expiry, and a normal API call that meets a 401 refreshes once and retries once. The host
+ * rotates the token on the same session while that session lives. When the session is already
+ * gone (the device slept past its expiry), the host mints a new session for this same frame and
+ * answers the same refresh with its token, so the page keeps its state; the SDK treats that
+ * token like any rotation. The plugin-session JWT lives 10 minutes, capped by the session
+ * expiry; Convex asks for a new one when it runs out. The session record on the host is the
+ * kill switch: every plugin door reads it on each call, so revoking it ends every live
+ * subscription at once whatever a JWT says.
+ *
+ * Secrets never reach this frame. A `plu_` token has no secrets scope, and the SDK has no
+ * secrets API. A page that needs a secret calls its own backend through `backend.invoke`; the
+ * backend run reads the secret with `env.BONOBO.secrets.get(name)`.
  *
  * @returns {Promise<import("bonobo-plugin-sdk/frontend").BonoboUiFrontendClient>}
  */
 async function bonobo_ui_connect() {
-	const { parentOrigin, bridgeNonce } = read_bridge_bootstrap();
+	const { parentOrigin, nonce } = read_bridge_bootstrap();
 	let apiOrigin = "";
 	let token = "";
 	let tokenExpiresAt = 0;
+	/**
+	 * Theme state — set by `bonobo:init`, replaced by `bonobo:theme` when the member switches the
+	 * host's theme. Each one is painted onto the document as it arrives. It stays null when the host
+	 * sends none, and then the document keeps the page's own colours.
+	 *
+	 * @type {import("bonobo-plugin-sdk/frontend").BonoboUiTheme | null}
+	 */
+	let theme = null;
+	/** @type {Set<(theme: import("bonobo-plugin-sdk/frontend").BonoboUiTheme) => void>} */
+	const themeSubscribers = /* @__PURE__ */ new Set();
 	/** @type {Map<string, { resolve: (token: string) => void, reject: (error: Error) => void, timeout: ReturnType<typeof setTimeout> }>} */
 	const pending_refreshes = /* @__PURE__ */ new Map();
 	/** @type {Promise<string> | null} */
 	let refresh_in_flight = null;
 	/**
-	 * Returns the current token, refreshing it first when it is expired or within
+	 * Returns the current session token, refreshing it first when it is expired or within
 	 * `TOKEN_EXPIRY_MARGIN_MS` of `tokenExpiresAt`.
 	 *
 	 * @returns {Promise<string>}
@@ -137,7 +5090,7 @@ async function bonobo_ui_connect() {
 		return token;
 	}
 	/**
-	 * Asks the host for a fresh token. Concurrent callers share one in-flight
+	 * Asks the host for a fresh session token. Concurrent callers share one in-flight
 	 * `bonobo:token-refresh-request`; it resolves on the matching `bonobo:token` and rejects on
 	 * the matching `bonobo:token-error`.
 	 *
@@ -149,7 +5102,7 @@ async function bonobo_ui_connect() {
 		refresh_in_flight = new Promise((resolve, reject) => {
 			const timeout = setTimeout(() => {
 				pending_refreshes.delete(requestId);
-				reject(/* @__PURE__ */ new Error("Plugin page token refresh timed out"));
+				reject(/* @__PURE__ */ new Error("Plugin frame token refresh timed out"));
 			}, REFRESH_DEADLINE_MS);
 			pending_refreshes.set(requestId, {
 				resolve,
@@ -160,7 +5113,7 @@ async function bonobo_ui_connect() {
 				window.parent.postMessage(
 					{
 						type: "bonobo:token-refresh-request",
-						bridgeNonce,
+						nonce,
 						requestId,
 					},
 					parentOrigin,
@@ -184,7 +5137,7 @@ async function bonobo_ui_connect() {
 	 *
 	 * @param {string} path - Public API path starting with `/`, e.g. `"/api/v1/files/list"`.
 	 * @param {{ method?: string, headers?: Record<string, string>, body?: unknown }} [init]
-	 * @returns {Promise<any>}
+	 * @returns {Promise<unknown>}
 	 */
 	async function fetchJson(path, init) {
 		const has_body = init?.body !== void 0;
@@ -211,6 +5164,141 @@ async function bonobo_ui_connect() {
 		}
 		return response.json();
 	}
+	/** @type {import("bonobo-plugin-sdk/frontend").BonoboUiFrontendClient["backend"]} */
+	const backend = {
+		invoke(opts) {
+			return fetchJson("/api/v1/plugin-backend/invoke", {
+				body: {
+					endpoint: opts.endpoint,
+					...(opts.input === void 0 ? {} : { input: opts.input }),
+					...(opts.serializationKey === void 0 ? {} : { serializationKey: opts.serializationKey }),
+				},
+			})
+				.then((response) => {
+					const result = read_backend_invoke_success(response);
+					if (result === void 0) {
+						console.error("[bonobo-plugin-sdk] Plugin backend invoke response was invalid");
+						return {
+							_nay: {
+								name: DEATH_UNAVAILABLE.reason,
+								message: "Failed to run the plugin backend",
+							},
+						};
+					}
+					return { _yay: result };
+				})
+				.catch((error) => {
+					const errorRecord = typeof error === "object" && error !== null ? error : null;
+					const status = typeof errorRecord?.status === "number" ? errorRecord.status : null;
+					/** @type {Record<string, unknown> | null} */
+					let refusal = null;
+					if (typeof errorRecord?.responseText === "string")
+						try {
+							const parsed = JSON.parse(errorRecord.responseText);
+							refusal = typeof parsed === "object" && parsed !== null ? parsed : null;
+						} catch {
+							refusal = null;
+						}
+					const message = typeof refusal?.message === "string" ? refusal.message : null;
+					if (status === 409 || status === 429)
+						return {
+							_nay: {
+								name: "busy",
+								message: message ?? "The plugin backend is busy",
+								...(typeof refusal?.retryAfterMs === "number" ? { retryAfterMs: refusal.retryAfterMs } : {}),
+							},
+						};
+					if (status === 401 || status === 403) {
+						if (Date.now() >= tokenExpiresAt)
+							return {
+								_nay: {
+									name: DEATH_SESSION_EXPIRED.reason,
+									message: DEATH_SESSION_EXPIRED.message,
+								},
+							};
+						return {
+							_nay: {
+								name: DEATH_DENIED.reason,
+								message: message ?? "This plugin may not run its backend here",
+							},
+						};
+					}
+					if (status !== null && status < 500 && message !== null)
+						return {
+							_nay: {
+								name: "invalid",
+								message,
+							},
+						};
+					if (Date.now() >= tokenExpiresAt)
+						return {
+							_nay: {
+								name: DEATH_SESSION_EXPIRED.reason,
+								message: DEATH_SESSION_EXPIRED.message,
+							},
+						};
+					console.error("[bonobo-plugin-sdk] Plugin backend invoke failed:", error);
+					return {
+						_nay: {
+							name: DEATH_UNAVAILABLE.reason,
+							message: "Failed to run the plugin backend",
+						},
+					};
+				});
+		},
+	};
+	/**
+	 * Exchanges the session token for a short-lived plugin-session JWT at the asset origin's
+	 * `/plugins-ui/session-jwt` route. For a published frame this is a same-origin JSON POST with
+	 * no preflight, and the route answers no other origin, so the JWT never becomes readable
+	 * cross-origin. The one exception is the app's development-only frame override: a dev
+	 * deployment may allowlist exactly one extra origin for this route, and the same POST then
+	 * runs preflighted from there.
+	 *
+	 * @param {string} sessionToken
+	 */
+	const exchange_session_jwt = (sessionToken) =>
+		fetch(apiOrigin + "/plugins-ui/session-jwt", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ token: sessionToken }),
+		});
+	/**
+	 * The Convex client's auth callback. Every call mints a fresh JWT, so a repeated call never
+	 * hands back a stale one.
+	 *
+	 * This chain is also what keeps an open page alive: `getToken()` refreshes the session
+	 * token through the host when the session is within 60 seconds of its expiry, and that host
+	 * refresh EXTENDS the session and moves its scheduled deletion. A page that slept past the
+	 * session expiry recovers here too: the host finds the session doc gone, mints a new session
+	 * for this same frame, and answers the refresh with the new token, so the exchange below
+	 * succeeds and the Convex client re-runs its query set under the new session. Only when the
+	 * host refuses to mint (uninstalled, membership ended, rate limit) does every path below
+	 * answer null, and null tells the Convex client this page is unauthenticated (its
+	 * subscriptions die; by then the host has replaced the frame with its error state and Retry).
+	 */
+	async function fetch_convex_jwt() {
+		for (let attempt = 0; ; attempt += 1) {
+			/** @type {Response | null} */
+			let response = null;
+			try {
+				response = await exchange_session_jwt(await getToken());
+				if (response.status === 401) response = await exchange_session_jwt(await refreshToken());
+			} catch {
+				response = null;
+			}
+			if (response?.ok) {
+				const body = await response.json().catch(() => null);
+				const jwt = body?._yay?.jwt;
+				const sessionExpiresAt = body?._yay?.sessionExpiresAt;
+				if (typeof jwt !== "string" || typeof sessionExpiresAt !== "number") return null;
+				tokenExpiresAt = sessionExpiresAt;
+				return jwt;
+			}
+			if (!(response === null || response.status === 429 || response.status >= 500) || attempt >= 2) return null;
+			await new Promise((resolveWait) => setTimeout(resolveWait, 1e3 * (attempt + 1)));
+		}
+	}
 	return new Promise((resolve) => {
 		let initialized = false;
 		/** @type {ReturnType<typeof setInterval> | undefined} */
@@ -219,7 +5307,7 @@ async function bonobo_ui_connect() {
 			window.parent.postMessage(
 				{
 					type: "bonobo:ready",
-					bridgeNonce,
+					nonce,
 				},
 				parentOrigin,
 			);
@@ -235,8 +5323,9 @@ async function bonobo_ui_connect() {
 			if (
 				message.type === "bonobo:init" &&
 				!initialized &&
-				message.bridgeNonce === bridgeNonce &&
+				message.nonce === nonce &&
 				typeof message.apiOrigin === "string" &&
+				typeof message.convexUrl === "string" &&
 				typeof message.token === "string" &&
 				typeof message.tokenExpiresAt === "number" &&
 				Number.isFinite(message.tokenExpiresAt) &&
@@ -248,16 +5337,54 @@ async function bonobo_ui_connect() {
 				apiOrigin = message.apiOrigin;
 				token = message.token;
 				tokenExpiresAt = message.tokenExpiresAt;
+				const convexClient = new ConvexClient(message.convexUrl, {
+					expectAuth: true,
+					unsavedChangesWarning: false,
+				});
+				let lastAuthWakePollAt = Date.now();
+				const authWakeInterval = setInterval(() => {
+					const now = Date.now();
+					if (now - lastAuthWakePollAt >= AUTH_WAKE_GAP_MS) convexClient.setAuth(fetch_convex_jwt);
+					lastAuthWakePollAt = now;
+				}, AUTH_WAKE_POLL_MS);
+				convexClient.setAuth(fetch_convex_jwt);
+				window.addEventListener(
+					"pagehide",
+					() => {
+						clearInterval(authWakeInterval);
+						convexClient.close();
+					},
+					{ once: true },
+				);
+				theme = read_theme(message.theme);
+				if (theme) apply_theme(theme);
+				const { data, members, scopes } = bonobo_ui_create_data_api({
+					...create_convex_data_deps(convexClient),
+					session_expired: () => Date.now() >= tokenExpiresAt,
+				});
 				resolve({
 					context: message.context,
 					apiOrigin,
 					getToken,
 					refreshToken,
 					fetchJson,
+					backend,
+					data,
+					members,
+					scopes,
+					theme: {
+						current: () => theme,
+						subscribe(onChange) {
+							themeSubscribers.add(onChange);
+							return () => {
+								themeSubscribers.delete(onChange);
+							};
+						},
+					},
 				});
 			} else if (
 				initialized &&
-				message.bridgeNonce === bridgeNonce &&
+				message.nonce === nonce &&
 				message.type === "bonobo:token" &&
 				typeof message.requestId === "string" &&
 				typeof message.token === "string" &&
@@ -272,9 +5399,16 @@ async function bonobo_ui_connect() {
 					tokenExpiresAt = message.tokenExpiresAt;
 					pending.resolve(message.token);
 				}
+			} else if (initialized && message.nonce === nonce && message.type === "bonobo:theme") {
+				const next = read_theme(message.theme);
+				if (next) {
+					theme = next;
+					apply_theme(next);
+					for (const onChange of themeSubscribers) onChange(next);
+				}
 			} else if (
 				initialized &&
-				message.bridgeNonce === bridgeNonce &&
+				message.nonce === nonce &&
 				message.type === "bonobo:token-error" &&
 				typeof message.requestId === "string" &&
 				typeof message.message === "string"
