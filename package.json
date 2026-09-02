@@ -1,7 +1,7 @@
 {
 	"name": "@bonobo/plugin-gallery",
 	"private": true,
-	"version": "0.1.14",
+	"version": "0.1.15",
 	"type": "module",
 	"scripts": {
 		"build": "vite build && prettier --write dist/frontend/assets/index.js dist/frontend/assets/index.css && node scripts/build-manifest.mjs",
@@ -13,7 +13,7 @@
 	},
 	"packageManager": "pnpm@10.33.0",
 	"dependencies": {
-		"bonobo-plugin-sdk": "github:raythurnvoid/bonobo-plugin-sdk#10a57958c006b84baccbb8025eafd01b3d411dd8",
+		"bonobo-plugin-sdk": "github:raythurnvoid/bonobo-plugin-sdk#49b87d4e5bf51bb471ba79444dc2a5e82bc05a16",
 		"preact": "^10.24.3",
 		"react": "^19.2.7",
 		"react-dom": "^19.2.7"
