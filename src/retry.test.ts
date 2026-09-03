@@ -59,11 +59,10 @@ test("any other refusal comes back at once without retrying", async () => {
 });
 
 test("a rejection propagates immediately without retrying", async () => {
-	// A 5xx, a body that is not JSON, a refused session refresh, and a network failure all reject.
-	const fetchJson = vi.fn().mockRejectedValue(Object.assign(new Error("service unavailable"), { status: 500 }));
+	// Only a refused session refresh and a network failure reject now: neither produced an
+	// answer. A 5xx and a body that is not JSON resolve, and the caller reads them.
+	const fetchJson = vi.fn().mockRejectedValue(new Error("network failure"));
 
-	await expect(fetch_json_with_429_retry(make_client(fetchJson), "/api/v1/files/list", {})).rejects.toThrow(
-		"service unavailable",
-	);
+	await expect(fetch_json_with_429_retry(make_client(fetchJson), "/api/v1/files/list", {})).rejects.toThrow("network failure");
 	expect(fetchJson).toHaveBeenCalledTimes(1);
 });

@@ -63,10 +63,14 @@ export function create_list_scan(client: BonoboClient): ListScan {
 						kind: "file",
 						contentTypePrefixes: MEDIA_CONTENT_TYPE_PREFIXES,
 					});
-					// Every status the route declares is an answer now. A refusal ends the scan with
-					// its own sentence, which the catch below turns into the page-level message.
+					// Every answer is a value now. A refusal ends the scan with its own sentence,
+					// which the catch below turns into the page-level message. A body that did not
+					// parse takes the same path: there is no page to scan.
 					if (answer.status !== 200) {
-						throw new Error(answer.body.message);
+						throw new Error(answer.body?.message ?? `The files list door answered ${answer.status}`);
+					}
+					if (answer.body === null) {
+						throw new Error("The files list door answered 200 with a body that is not JSON");
 					}
 					const page = answer.body;
 					cursor = page.cursor;

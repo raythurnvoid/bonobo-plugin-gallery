@@ -6006,7 +6006,7 @@ var ConvexReactClient = class {
 };
 src_default.createContext(void 0);
 //#endregion
-//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_4d4db22eb0e4f3dd0f4035238fc7625e/node_modules/bonobo-plugin-sdk/frontend.js
+//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_e34f67e88791a0dbb74fee044a26a5bc/node_modules/bonobo-plugin-sdk/frontend.js
 /**
  * Bonobo plugin frontend SDK — hand-written browser ESM, no build step.
  *
@@ -6303,19 +6303,24 @@ async function bonobo_connect() {
 	 * from the same table, so a path the host does not serve and a body field the route does not
 	 * accept are both compile errors.
 	 *
-	 * A status below 500 with a JSON body resolves. Three things reject instead, all with the same
-	 * meaning for the caller — the route did not answer:
+	 * Every HTTP answer resolves, whatever its status. A 500 resolves like a 200, and the caller
+	 * decides what a status means. `body` is the parsed JSON when the text parses and `null` when
+	 * it does not, so a plain-text answer — Convex's own router answers an unrouted path that way —
+	 * is a value too, not a rejection.
 	 *
-	 * - A status of 500 or more. It throws an `Error` carrying `status` and `responseText`. A 5xx
-	 *   means the same thing to every caller, which is that the outcome is unknown. The generated
-	 *   union drops its 5xx members for that reason, so type and runtime agree.
-	 * - A body that is not JSON, on any status. Every declared answer of every route is JSON, so a
-	 *   plain-text body means something other than the route answered — Convex's own router
-	 *   answers an unrouted path that way. It throws the same `Error` shape, so the caller still
-	 *   sees the status and the raw text.
+	 * Two things reject, because there is no answer to hand back:
+	 *
+	 * - `fetch` itself: a network failure, an aborted `signal`, or a refused redirect. Those
+	 *   rejections travel out of here untouched.
 	 * - A session the host will not renew. `getToken` and `refreshToken` both reject when the host
 	 *   answers `bonobo:token-error` or does not answer in 10 seconds, and that rejection travels
-	 *   out of here unchanged. Those errors carry no `status`, the same as a network failure.
+	 *   out of here unchanged.
+	 *
+	 * A status the route does not declare resolves like any other answer, and its body parses the
+	 * same way, but the generated union does not name it. That is on purpose: a catch-all
+	 * `{ status: number; body: null }` member would stop `status === 200` from narrowing `body`,
+	 * because `number` includes 200. So `body === null` says the text did not parse. It never says
+	 * the status was undeclared.
 	 *
 	 * `init` takes the rest of `RequestInit` — `signal`, extra `headers`, `keepalive`, `cache`, and
 	 * so on. These fields are set after `init` is merged, so a caller's value never wins:
@@ -6352,19 +6357,10 @@ async function bonobo_connect() {
 		let response = await send(firstBearer);
 		if (response.status === 401) response = await send(token !== firstBearer ? token : await refreshToken());
 		const responseText = await response.text();
-		/** @param {string} reason */
-		const refuse = (reason) =>
-			Object.assign(/* @__PURE__ */ new Error(`${path} responded ${response.status}: ${reason}`), {
-				status: response.status,
-				responseText,
-			});
-		if (response.status >= 500) throw refuse(responseText);
-		let parsedBody;
+		let parsedBody = null;
 		try {
 			parsedBody = JSON.parse(responseText);
-		} catch {
-			throw refuse("the body was not JSON");
-		}
+		} catch {}
 		return {
 			status: response.status,
 			body: parsedBody,
@@ -6603,8 +6599,9 @@ function get_error_message(error) {
  * `client.fetchJson` with the shared 429 back-off: a rate-limited call is retried with the
  * exact same body (including any cursor) after 3s, then 6s, then the answer is returned as it is.
  *
- * Every other status comes back for the caller to narrow on. Only a 5xx, a body that is not JSON,
- * a refused session refresh, and a network failure still reject.
+ * Every other status comes back for the caller to narrow on, a 5xx included. `body` is `null` when
+ * the answer did not parse as JSON. Only a refused session refresh and a network failure reject,
+ * because neither one produced an answer.
  */
 async function fetch_json_with_429_retry(client, path, body) {
 	for (let attempt = 0; ; attempt += 1) {
@@ -6639,7 +6636,9 @@ function create_list_scan(client) {
 						kind: "file",
 						contentTypePrefixes: MEDIA_CONTENT_TYPE_PREFIXES,
 					});
-					if (answer.status !== 200) throw new Error(answer.body.message);
+					if (answer.status !== 200)
+						throw new Error(answer.body?.message ?? `The files list door answered ${answer.status}`);
+					if (answer.body === null) throw new Error("The files list door answered 200 with a body that is not JSON");
 					const page = answer.body;
 					cursor = page.cursor;
 					source_is_done = page.isDone;
@@ -6665,10 +6664,13 @@ function create_list_scan(client) {
 }
 /**
  * The 200 body, or a throw carrying the route's own refusal sentence. Both call sites below feed
- * a member-visible error, and every refusal this route declares carries `message`.
+ * a member-visible error, and every refusal this route declares carries `message`. Since SDK
+ * 0.18.0 a body that did not parse arrives as `null` on any status, so that throws here too.
  */
 function download_urls_body(answer) {
-	if (answer.status !== 200) throw new Error(answer.body.message);
+	if (answer.status !== 200)
+		throw new Error(answer.body?.message ?? `The download-urls door answered ${answer.status}`);
+	if (answer.body === null) throw new Error("The download-urls door answered 200 with a body that is not JSON");
 	return answer.body;
 }
 function create_media_url_manager(client) {

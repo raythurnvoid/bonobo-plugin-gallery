@@ -19,11 +19,15 @@ type DownloadUrlsBody = BonoboHttpApi["/api/v1/files/download-urls"]["POST"]["re
 
 /**
  * The 200 body, or a throw carrying the route's own refusal sentence. Both call sites below feed
- * a member-visible error, and every refusal this route declares carries `message`.
+ * a member-visible error, and every refusal this route declares carries `message`. Since SDK
+ * 0.18.0 a body that did not parse arrives as `null` on any status, so that throws here too.
  */
 function download_urls_body(answer: BonoboHttpResponse<"/api/v1/files/download-urls">): DownloadUrlsBody {
 	if (answer.status !== 200) {
-		throw new Error(answer.body.message);
+		throw new Error(answer.body?.message ?? `The download-urls door answered ${answer.status}`);
+	}
+	if (answer.body === null) {
+		throw new Error("The download-urls door answered 200 with a body that is not JSON");
 	}
 	return answer.body;
 }

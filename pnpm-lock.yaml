@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       bonobo-plugin-sdk:
-        specifier: github:raythurnvoid/bonobo-plugin-sdk#0815bdc3688eccb53ecc1c1194c3656593e2ffc9
-        version: https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/0815bdc3688eccb53ecc1c1194c3656593e2ffc9(convex@1.45.0(react@19.2.7))(react@19.2.7)
+        specifier: github:raythurnvoid/bonobo-plugin-sdk#404f04435e6fbd4954040f33116fa60f680db226
+        version: https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/404f04435e6fbd4954040f33116fa60f680db226(convex@1.45.0(react@19.2.7))(react@19.2.7)
       convex:
         specifier: ^1.42.2
         version: 1.45.0(react@19.2.7)
@@ -731,9 +731,9 @@ packages:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
 
-  bonobo-plugin-sdk@https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/0815bdc3688eccb53ecc1c1194c3656593e2ffc9:
-    resolution: {tarball: https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/0815bdc3688eccb53ecc1c1194c3656593e2ffc9}
-    version: 0.17.0
+  bonobo-plugin-sdk@https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/404f04435e6fbd4954040f33116fa60f680db226:
+    resolution: {tarball: https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/404f04435e6fbd4954040f33116fa60f680db226}
+    version: 0.18.0
     peerDependencies:
       convex: ^1.42.2
       react: ^19.0.0
@@ -1767,7 +1767,7 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
-  bonobo-plugin-sdk@https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/0815bdc3688eccb53ecc1c1194c3656593e2ffc9(convex@1.45.0(react@19.2.7))(react@19.2.7):
+  bonobo-plugin-sdk@https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/404f04435e6fbd4954040f33116fa60f680db226(convex@1.45.0(react@19.2.7))(react@19.2.7):
     dependencies:
       '@cloudflare/workers-types': 4.20260702.1
       convex: 1.45.0(react@19.2.7)

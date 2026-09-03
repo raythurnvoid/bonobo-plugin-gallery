@@ -81,10 +81,10 @@ test("429 retries the same cursor and does not consume the page budget", async (
 	await vi.advanceTimersByTimeAsync(3_000);
 	const result = await result_promise;
 
-	// 1 rejected call + the full budget of successfully advanced pages.
+	// 1 retried 429 + the full budget of successfully advanced pages.
 	expect(fetchJson).toHaveBeenCalledTimes(1 + LIST_PAGE_BUDGET);
 	expect(pages_served).toBe(LIST_PAGE_BUDGET);
-	// The rejected call and its retry used the same cursor.
+	// The 429 and its retry used the same cursor.
 	expect(fetchJson.mock.calls[0][1].cursor).toBeNull();
 	expect(fetchJson.mock.calls[1][1].cursor).toBeNull();
 	// Capped empty scan: nothing exposed, but the scan is not complete.
@@ -213,8 +213,9 @@ test("a failure keeps partial progress and resumes from the advanced cursor", as
 			return { status: 200, body: { items: media_items(6, "a"), cursor: "c1", isDone: false } };
 		}
 		if (pages_served === 2) {
-			// A 5xx still rejects, and the scan keeps what it already read.
-			throw Object.assign(new Error("service unavailable"), { status: 500 });
+			// A network failure rejects, and the scan keeps what it already read. A 5xx no
+			// longer rejects; the test below covers that one.
+			throw new Error("network failure");
 		}
 		return { status: 200, body: { items: media_items(6, "b"), cursor: "", isDone: true } };
 	});
@@ -222,7 +223,7 @@ test("a failure keeps partial progress and resumes from the advanced cursor", as
 
 	const failed = await scan.load_next();
 	expect(failed.items).toHaveLength(6);
-	expect(failed.errorMessage).toBe("service unavailable");
+	expect(failed.errorMessage).toBe("network failure");
 	expect(scan.has_more()).toBe(true);
 
 	const resumed = await scan.load_next();
@@ -251,6 +252,38 @@ test("a refused page ends the scan with the route's own sentence and keeps what 
 	expect(scan.has_more()).toBe(true);
 	// One refusal ends this click. It is not retried like a 429.
 	expect(fetchJson).toHaveBeenCalledTimes(2);
+});
+
+/** One good page, then the answer under test. Returns what the click exposed. */
+async function scan_after_answer(answer: { status: number; body: null }) {
+	let pages_served = 0;
+	const fetchJson = vi.fn(async (_path: string, _body: Record<string, unknown>) => {
+		pages_served += 1;
+		if (pages_served === 1) {
+			return { status: 200, body: { items: media_items(6, "a"), cursor: "c1", isDone: false } };
+		}
+		return answer;
+	});
+	const scan = create_list_scan(make_client(fetchJson));
+	return await scan.load_next();
+}
+
+test("a 5xx ends the scan with a sentence naming the door, and keeps what it read", async () => {
+	// Since SDK 0.18.0 a 5xx resolves like any other answer, and a gateway sends HTML, so the
+	// body is null. Read as a page it would put a TypeError text in front of the member.
+	const page = await scan_after_answer({ status: 502, body: null });
+
+	expect(page.items).toHaveLength(6);
+	expect(page.errorMessage).toBe("The files list door answered 502");
+});
+
+test("a 200 whose body did not parse ends the scan instead of reading an empty page", async () => {
+	// The status says "here is your page" and there is none. This is the case the null check
+	// catches on its own: the status guard above it lets a 200 through.
+	const page = await scan_after_answer({ status: 200, body: null });
+
+	expect(page.items).toHaveLength(6);
+	expect(page.errorMessage).toBe("The files list door answered 200 with a body that is not JSON");
 });
 
 test("a 429 that outlives the back-off reaches the page as its own message", async () => {

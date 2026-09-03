@@ -232,8 +232,9 @@ test("a failed batched call rejects its nodes and is not deduped for the next at
 
 	const failed = media.get_url("n1");
 	await flush_microtasks();
-	calls[0].gate.reject(Object.assign(new Error("service unavailable"), { status: 500 }));
-	await expect(failed).rejects.toThrow("service unavailable");
+	// A network failure: the SDK rejects only when there was no answer at all.
+	calls[0].gate.reject(new Error("network failure"));
+	await expect(failed).rejects.toThrow("network failure");
 
 	// The failure cleared the in-flight entry: a new attempt makes a fresh request instead
 	// of reusing the dead promise.
