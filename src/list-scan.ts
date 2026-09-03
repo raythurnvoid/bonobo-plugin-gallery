@@ -1,4 +1,5 @@
 import type { BonoboClient } from "bonobo-plugin-sdk/frontend";
+import type { BonoboHttpApi } from "bonobo-plugin-sdk/http-api";
 import { fetch_json_with_429_retry, get_error_message } from "./retry";
 
 /** Gallery page size: each "Load more" exposes at most this many new tiles. */
@@ -20,20 +21,8 @@ export const LIST_PAGE_BUDGET = 30;
 /** Prefixes the server filters each page by; only media files come back. */
 const MEDIA_CONTENT_TYPE_PREFIXES = ["image/", "video/"];
 
-export type FilesListItem = {
-	path: string;
-	name: string;
-	kind: "file" | "folder";
-	nodeId: string;
-	contentType: string | null;
-	updatedAt: number;
-};
-
-type FilesListResponse = {
-	items: FilesListItem[];
-	cursor: string | null;
-	isDone: boolean;
-};
+/** One listed file, as the app's own `/api/v1/files/list` route answers it. */
+export type FilesListItem = BonoboHttpApi["/api/v1/files/list"]["POST"]["response"][200]["body"]["items"][number];
 
 export type ListScan = {
 	/**
@@ -73,7 +62,7 @@ export function create_list_scan(client: BonoboClient): ListScan {
 						cursor,
 						kind: "file",
 						contentTypePrefixes: MEDIA_CONTENT_TYPE_PREFIXES,
-					})) as FilesListResponse;
+					})) as BonoboHttpApi["/api/v1/files/list"]["POST"]["response"][200]["body"];
 					cursor = page.cursor;
 					source_is_done = page.isDone;
 					for (const item of page.items) {

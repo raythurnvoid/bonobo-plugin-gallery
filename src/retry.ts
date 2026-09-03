@@ -1,4 +1,5 @@
 import type { BonoboClient } from "bonobo-plugin-sdk/frontend";
+import type { BonoboHttpApi, BonoboHttpApiPath } from "bonobo-plugin-sdk/http-api";
 
 /** Back-off delays after a 429, one per retry. */
 const RETRY_429_DELAYS_MS = [3_000, 6_000];
@@ -23,10 +24,10 @@ export function get_error_message(error: unknown): string {
  * `client.fetchJson` with the shared 429 back-off: a rate-limited call is retried with the
  * exact same body (including any cursor) after 3s, then 6s, then the error propagates.
  */
-export async function fetch_json_with_429_retry(
+export async function fetch_json_with_429_retry<P extends BonoboHttpApiPath>(
 	client: BonoboClient,
-	path: string,
-	body: unknown,
+	path: P,
+	body: BonoboHttpApi[P]["POST"]["body"],
 ): Promise<unknown> {
 	for (let attempt = 0; ; attempt += 1) {
 		try {

@@ -7,9 +7,12 @@ function media_item(nodeId: string): FilesListItem {
 		path: `/media/${nodeId}.png`,
 		name: `${nodeId}.png`,
 		kind: "file",
-		nodeId,
+		// The route answers a branded files_nodes id. Brand the fixture once here.
+		nodeId: nodeId as FilesListItem["nodeId"],
 		contentType: "image/png",
 		updatedAt: 0,
+		status: "ready",
+		size: 1024,
 	};
 }
 
@@ -32,7 +35,7 @@ test("sparse workspace: one click follows the cursor with wide file-only pages, 
 		pages_served += 1;
 		return {
 			items: media_items(2, `p${pages_served}-`),
-			cursor: pages_served === 6 ? null : `c${pages_served}`,
+			cursor: pages_served === 6 ? "" : `c${pages_served}`,
 			isDone: pages_served === 6,
 		};
 	});
@@ -48,6 +51,7 @@ test("sparse workspace: one click follows the cursor with wide file-only pages, 
 		recursive: true,
 		limit: LIST_SCAN_LIMIT,
 		scanLimit: 10_000,
+		// The request cursor starts null; only the answer's cursor is always a string.
 		cursor: null,
 		kind: "file",
 		contentTypePrefixes: ["image/", "video/"],
@@ -88,7 +92,7 @@ test("429 retries the same cursor and does not consume the page budget", async (
 test("dense terminal page: 12 exposed, later clicks drain the buffer without new fetches", async () => {
 	const fetchJson = vi.fn(async (_path: string, _init: { body: Record<string, unknown> }) => ({
 		items: media_items(100, "n"),
-		cursor: null,
+		cursor: "",
 		isDone: true,
 	}));
 	const scan = create_list_scan(make_client(fetchJson));
@@ -125,7 +129,7 @@ test("dense nonterminal overflow drains before the next necessary fetch", async 
 		if (pages_served === 1) {
 			return { items: media_items(25, "a"), cursor: "c1", isDone: false };
 		}
-		return { items: media_items(11, "b"), cursor: null, isDone: true };
+		return { items: media_items(11, "b"), cursor: "", isDone: true };
 	});
 	const scan = create_list_scan(make_client(fetchJson));
 
@@ -161,7 +165,7 @@ test("a capped scan resumes from its saved cursor on the next click", async () =
 		if (pages_served <= LIST_PAGE_BUDGET) {
 			return { items: [], cursor: `c${pages_served}`, isDone: false };
 		}
-		return { items: [media_item("found")], cursor: null, isDone: true };
+		return { items: [media_item("found")], cursor: "", isDone: true };
 	});
 	const scan = create_list_scan(make_client(fetchJson));
 
@@ -184,7 +188,7 @@ test("items repeated across pages are deduplicated by nodeId", async () => {
 			return { items: media_items(6, "a"), cursor: "c1", isDone: false };
 		}
 		// a5 moved past the cursor mid-pagination and comes back a second time.
-		return { items: [media_item("a5"), ...media_items(7, "b")], cursor: null, isDone: true };
+		return { items: [media_item("a5"), ...media_items(7, "b")], cursor: "", isDone: true };
 	});
 	const scan = create_list_scan(make_client(fetchJson));
 
@@ -208,7 +212,7 @@ test("a failure keeps partial progress and resumes from the advanced cursor", as
 		if (pages_served === 2) {
 			throw Object.assign(new Error("service unavailable"), { status: 500 });
 		}
-		return { items: media_items(6, "b"), cursor: null, isDone: true };
+		return { items: media_items(6, "b"), cursor: "", isDone: true };
 	});
 	const scan = create_list_scan(make_client(fetchJson));
 

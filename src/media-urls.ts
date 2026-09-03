@@ -1,4 +1,5 @@
 import type { BonoboClient } from "bonobo-plugin-sdk/frontend";
+import type { BonoboHttpApi } from "bonobo-plugin-sdk/http-api";
 import { fetch_json_with_429_retry } from "./retry";
 
 /** Signed URLs are re-requested when they are this close to `expiresAt`. */
@@ -13,17 +14,8 @@ export const MAX_URL_BATCH_IDS = 12;
 
 export type MediaUrl = { url: string; expiresAt: number };
 
-type FilesDownloadUrlResponse = {
-	fileNodeId: string;
-	url: string;
-	expiresAt: number;
-};
-
-type FilesDownloadUrlsResponse = {
-	items: FilesDownloadUrlResponse[];
-	errors: Array<{ fileNodeId: string; message: string }>;
-	truncated: boolean;
-};
+/** What `/api/v1/files/download-urls` answers, as the app's own route table declares it. */
+type DownloadUrlsAnswer = BonoboHttpApi["/api/v1/files/download-urls"]["POST"]["response"][200]["body"];
 
 export type MediaUrlManager = {
 	/**
@@ -84,7 +76,7 @@ export function create_media_url_manager(client: BonoboClient): MediaUrlManager 
 			try {
 				const response = (await fetch_json_with_429_retry(client, "/api/v1/files/download-urls", {
 					fileNodeIds: [nodeId],
-				})) as FilesDownloadUrlsResponse;
+				})) as DownloadUrlsAnswer;
 				const item = response.items[0];
 				if (!item) {
 					throw new Error(response.errors[0]?.message ?? "Not found");
@@ -127,7 +119,7 @@ export function create_media_url_manager(client: BonoboClient): MediaUrlManager 
 			try {
 				const response = (await fetch_json_with_429_retry(client, "/api/v1/files/download-urls", {
 					fileNodeIds: entries.map((entry) => entry.nodeId),
-				})) as FilesDownloadUrlsResponse;
+				})) as DownloadUrlsAnswer;
 				const items_by_node_id = new Map(response.items.map((item) => [item.fileNodeId, item]));
 				const errors_by_node_id = new Map(response.errors.map((item) => [item.fileNodeId, item.message]));
 				for (const entry of entries) {

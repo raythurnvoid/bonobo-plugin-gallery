@@ -10,9 +10,12 @@ function media_item(nodeId: string): FilesListItem {
 		path: `/media/${nodeId}.png`,
 		name: `${nodeId}.png`,
 		kind: "file",
-		nodeId,
+		// The route answers a branded files_nodes id. Brand the fixture once here.
+		nodeId: nodeId as FilesListItem["nodeId"],
 		contentType: "image/png",
 		updatedAt: 0,
+		status: "ready",
+		size: 1024,
 	};
 }
 
@@ -36,7 +39,7 @@ test("a capped empty scan keeps Load more and does not show the empty state", as
 });
 
 test("a completed empty scan shows the empty state and no Load more", async () => {
-	const fetchJson = vi.fn(async () => ({ items: [], cursor: null, isDone: true }));
+	const fetchJson = vi.fn(async () => ({ items: [], cursor: "", isDone: true }));
 	render(<App client={make_client(fetchJson)} />);
 
 	expect(await screen.findByText("No images or videos yet.")).toBeTruthy();
@@ -54,7 +57,7 @@ test("a first-load list failure shows an alert whose Retry resumes the scan", as
 		if (list_calls === 1) {
 			throw Object.assign(new Error("service unavailable"), { status: 500 });
 		}
-		return { items: [media_item("a1")], cursor: null, isDone: true };
+		return { items: [media_item("a1")], cursor: "", isDone: true };
 	});
 	render(<App client={make_client(fetchJson)} />);
 
@@ -81,7 +84,7 @@ test("grid tiles from one page coalesce into a single batched download-urls call
 				truncated: false,
 			};
 		}
-		return { items: [media_item("a1"), media_item("a2"), media_item("a3")], cursor: null, isDone: true };
+		return { items: [media_item("a1"), media_item("a2"), media_item("a3")], cursor: "", isDone: true };
 	});
 	render(<App client={make_client(fetchJson)} />);
 
