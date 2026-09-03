@@ -6006,7 +6006,7 @@ var ConvexReactClient = class {
 };
 src_default.createContext(void 0);
 //#endregion
-//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_131c837aa793db0a215e76e552e6338e/node_modules/bonobo-plugin-sdk/frontend.js
+//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_4d4db22eb0e4f3dd0f4035238fc7625e/node_modules/bonobo-plugin-sdk/frontend.js
 /**
  * Bonobo plugin frontend SDK — hand-written browser ESM, no build step.
  *
@@ -6089,31 +6089,6 @@ function apply_theme(theme) {
 	for (const [name, value] of Object.entries(theme.tokens)) root.style.setProperty(name, value);
 	root.classList.toggle("light", theme.mode === "light");
 	root.classList.toggle("dark", theme.mode === "dark");
-}
-/**
- * Reads the invoke route's success body before plugin code can use it. The route is an outside
- * boundary; `undefined` means the shape was not the contract, which the caller reports as
- * unavailable rather than handing the page a half-checked object.
- *
- * @param {unknown} value
- * @returns {{ runId: string, pluginStatus: number, output: string, outputTruncated: boolean } | undefined}
- */
-function read_backend_invoke_success(value) {
-	if (typeof value !== "object" || value === null) return;
-	const body = value;
-	if (
-		typeof body.runId !== "string" ||
-		typeof body.pluginStatus !== "number" ||
-		typeof body.output !== "string" ||
-		typeof body.outputTruncated !== "boolean"
-	)
-		return;
-	return {
-		runId: body.runId,
-		pluginStatus: body.pluginStatus,
-		output: body.output,
-		outputTruncated: body.outputTruncated,
-	};
 }
 /**
  * Validates the `bonobo:init` context union: `kind: "page"` or `kind: "file_view"`.
@@ -6223,8 +6198,9 @@ function read_bridge_bootstrap() {
  * subscription at once whatever a JWT says.
  *
  * Secrets never reach this frame. A `plu_` token has no secrets scope, and the SDK has no
- * secrets API. A page that needs a secret calls its own backend through `backend.invoke`; the
- * backend run reads the secret with `env.BONOBO.secrets.get(name)`.
+ * secrets API. A page that needs a secret calls its own backend through
+ * `fetchJson("/api/v1/plugin-backend/invoke", ...)`; the backend run reads the secret with
+ * `env.BONOBO.secrets.get(name)`.
  *
  * @returns {Promise<import("bonobo-plugin-sdk/frontend").BonoboClient>}
  */
@@ -6319,124 +6295,94 @@ async function bonobo_connect() {
 		}
 	};
 	/**
-	 * `fetch` against `apiOrigin + path` with `Authorization: Bearer <token>`. When `init.body`
-	 * is set it is JSON-encoded and sent with `Content-Type: application/json`, and the default
-	 * method is `POST`; without a body the default method is `GET`. On a `401` the client
-	 * refreshes the token and retries exactly once. Ok responses resolve with the parsed JSON
-	 * body; non-ok responses throw an `Error` carrying `status` and `responseText`.
+	 * `POST apiOrigin + path` with `body` as JSON, and the route's own answer back.
 	 *
-	 * @param {string} path - Public API path starting with `/`, e.g. `"/api/v1/files/list"`.
-	 * @param {{ method?: string, headers?: Record<string, string>, body?: unknown }} [init]
-	 * @returns {Promise<unknown>}
+	 * The result is `{ status, body }` typed from the app's route table
+	 * ({@link BonoboHttpResponse}, generated into `bonobo-plugin-sdk/http-api`), so narrowing on
+	 * `status` narrows `body` to what that route answers for that status. `path` and `body` come
+	 * from the same table, so a path the host does not serve and a body field the route does not
+	 * accept are both compile errors.
+	 *
+	 * A status below 500 with a JSON body resolves. Three things reject instead, all with the same
+	 * meaning for the caller — the route did not answer:
+	 *
+	 * - A status of 500 or more. It throws an `Error` carrying `status` and `responseText`. A 5xx
+	 *   means the same thing to every caller, which is that the outcome is unknown. The generated
+	 *   union drops its 5xx members for that reason, so type and runtime agree.
+	 * - A body that is not JSON, on any status. Every declared answer of every route is JSON, so a
+	 *   plain-text body means something other than the route answered — Convex's own router
+	 *   answers an unrouted path that way. It throws the same `Error` shape, so the caller still
+	 *   sees the status and the raw text.
+	 * - A session the host will not renew. `getToken` and `refreshToken` both reject when the host
+	 *   answers `bonobo:token-error` or does not answer in 10 seconds, and that rejection travels
+	 *   out of here unchanged. Those errors carry no `status`, the same as a network failure.
+	 *
+	 * `init` takes the rest of `RequestInit` — `signal`, extra `headers`, `keepalive`, `cache`, and
+	 * so on. These fields are set after `init` is merged, so a caller's value never wins:
+	 * `method` (always `POST`), `body` (the parameter, JSON-encoded), `Authorization` (the session
+	 * token, with one refresh-and-resend on a 401), `Content-Type` and `Accept`
+	 * (`application/json`), and `redirect: "error"`. `method`, `body` and `redirect` are removed
+	 * from the type too. The three headers cannot be: header names are case-insensitive, so the
+	 * type cannot name them, and setting them last is the whole enforcement. Redirects are refused
+	 * because following one would resend the bearer to another origin, and no route redirects.
+	 *
+	 * @template {import("bonobo-plugin-sdk/http-api").BonoboHttpApiPath} P
+	 * @param {P} path - Public API path starting with `/`, e.g. `"/api/v1/files/list"`.
+	 * @param {import("bonobo-plugin-sdk/http-api").BonoboHttpApi[P]["POST"]["body"]} body
+	 * @param {Omit<RequestInit, "method" | "body" | "redirect">} [init]
+	 * @returns {Promise<import("bonobo-plugin-sdk/http-api").BonoboHttpResponse<P>>}
 	 */
-	async function fetchJson(path, init) {
-		const has_body = init?.body !== void 0;
+	async function fetchJson(path, body, init) {
+		const payload = JSON.stringify(body);
 		/** @param {string} bearer */
 		const send = (bearer) => {
 			const headers = new Headers(init?.headers);
 			headers.set("Authorization", `Bearer ${bearer}`);
-			if (has_body) headers.set("Content-Type", "application/json");
+			headers.set("Content-Type", "application/json");
+			headers.set("Accept", "application/json");
 			return fetch(apiOrigin + path, {
-				method: init?.method ?? (has_body ? "POST" : "GET"),
+				...init,
+				method: "POST",
+				body: payload,
 				headers,
-				body: has_body ? JSON.stringify(init.body) : void 0,
+				redirect: "error",
 			});
 		};
 		const firstBearer = await getToken();
 		let response = await send(firstBearer);
 		if (response.status === 401) response = await send(token !== firstBearer ? token : await refreshToken());
-		if (!response.ok) {
-			const responseText = await response.text();
-			throw Object.assign(/* @__PURE__ */ new Error(`${path} responded ${response.status}: ${responseText}`), {
+		const responseText = await response.text();
+		/** @param {string} reason */
+		const refuse = (reason) =>
+			Object.assign(/* @__PURE__ */ new Error(`${path} responded ${response.status}: ${reason}`), {
 				status: response.status,
 				responseText,
 			});
+		if (response.status >= 500) throw refuse(responseText);
+		let parsedBody;
+		try {
+			parsedBody = JSON.parse(responseText);
+		} catch {
+			throw refuse("the body was not JSON");
 		}
-		return response.json();
+		return {
+			status: response.status,
+			body: parsedBody,
+		};
 	}
-	/** @type {import("bonobo-plugin-sdk/frontend").BonoboClient["backend"]} */
-	const backend = {
-		invoke(opts) {
-			return fetchJson("/api/v1/plugin-backend/invoke", {
-				body: {
-					endpoint: opts.endpoint,
-					...(opts.input === void 0 ? {} : { input: opts.input }),
-					...(opts.serializationKey === void 0 ? {} : { serializationKey: opts.serializationKey }),
-				},
-			})
-				.then((response) => {
-					const result = read_backend_invoke_success(response);
-					if (result === void 0) {
-						console.error("[bonobo-plugin-sdk] Plugin backend invoke response was invalid");
-						return {
-							_nay: {
-								name: "unavailable",
-								message: "Failed to run the plugin backend",
-							},
-						};
-					}
-					return { _yay: result };
-				})
-				.catch((error) => {
-					const errorRecord = typeof error === "object" && error !== null ? error : null;
-					const status = typeof errorRecord?.status === "number" ? errorRecord.status : null;
-					/** @type {Record<string, unknown> | null} */
-					let refusal = null;
-					if (typeof errorRecord?.responseText === "string")
-						try {
-							const parsed = JSON.parse(errorRecord.responseText);
-							refusal = typeof parsed === "object" && parsed !== null ? parsed : null;
-						} catch {
-							refusal = null;
-						}
-					const message = typeof refusal?.message === "string" ? refusal.message : null;
-					if (status === 409 || status === 429)
-						return {
-							_nay: {
-								name: "busy",
-								message: message ?? "The plugin backend is busy",
-								...(typeof refusal?.retryAfterMs === "number" ? { retryAfterMs: refusal.retryAfterMs } : {}),
-							},
-						};
-					if (status === 401 || status === 403) {
-						if (Date.now() >= tokenExpiresAt)
-							return {
-								_nay: {
-									name: "session_expired",
-									message: "This plugin session expired",
-								},
-							};
-						return {
-							_nay: {
-								name: "denied",
-								message: message ?? "This plugin may not run its backend here",
-							},
-						};
-					}
-					if (status !== null && status < 500 && message !== null)
-						return {
-							_nay: {
-								name: "invalid",
-								message,
-							},
-						};
-					if (Date.now() >= tokenExpiresAt)
-						return {
-							_nay: {
-								name: "session_expired",
-								message: "This plugin session expired",
-							},
-						};
-					console.error("[bonobo-plugin-sdk] Plugin backend invoke failed:", error);
-					return {
-						_nay: {
-							name: "unavailable",
-							message: "Failed to run the plugin backend",
-						},
-					};
-				});
-		},
-	};
+	/**
+	 * A `Headers` object carrying the current session bearer, for a plugin that calls the host with
+	 * its own `fetch` instead of `fetchJson`. Any headers passed in are kept; `Authorization` is
+	 * set last and replaces one of that name.
+	 *
+	 * @param {HeadersInit} [headers]
+	 * @returns {Promise<Headers>}
+	 */
+	async function authorize(headers) {
+		const authorized = new Headers(headers);
+		authorized.set("Authorization", `Bearer ${await getToken()}`);
+		return authorized;
+	}
 	/**
 	 * Fallback for a host that delivered no JWT: exchanges the session token for the plugin-session
 	 * JWT at the asset origin's `/plugins-ui/session-jwt` route. For a published frame this is a
@@ -6568,7 +6514,7 @@ async function bonobo_connect() {
 					getToken,
 					refreshToken,
 					fetchJson,
-					backend,
+					authorize,
 					convex: convexClient,
 					api: bonobo_convex_api,
 					session: {
@@ -6650,28 +6596,26 @@ var RETRY_429_DELAYS_MS = [3e3, 6e3];
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
-function get_error_status(error) {
-	if (error instanceof Error && "status" in error && typeof error.status === "number") return error.status;
-}
 function get_error_message(error) {
 	return error instanceof Error ? error.message : String(error);
 }
 /**
  * `client.fetchJson` with the shared 429 back-off: a rate-limited call is retried with the
- * exact same body (including any cursor) after 3s, then 6s, then the error propagates.
+ * exact same body (including any cursor) after 3s, then 6s, then the answer is returned as it is.
+ *
+ * Every other status comes back for the caller to narrow on. Only a 5xx, a body that is not JSON,
+ * a refused session refresh, and a network failure still reject.
  */
 async function fetch_json_with_429_retry(client, path, body) {
-	for (let attempt = 0; ; attempt += 1)
-		try {
-			return await client.fetchJson(path, { body });
-		} catch (error) {
-			const delay_ms = RETRY_429_DELAYS_MS[attempt];
-			if (get_error_status(error) === 429 && delay_ms !== void 0) {
-				await sleep(delay_ms);
-				continue;
-			}
-			throw error;
+	for (let attempt = 0; ; attempt += 1) {
+		const answer = await client.fetchJson(path, body);
+		const delay_ms = RETRY_429_DELAYS_MS[attempt];
+		if (answer.status === 429 && delay_ms !== void 0) {
+			await sleep(delay_ms);
+			continue;
 		}
+		return answer;
+	}
 }
 var LIST_SCAN_MAX_ROWS_READ = 1e4;
 /** Prefixes the server filters each page by; only media files come back. */
@@ -6687,7 +6631,7 @@ function create_list_scan(client) {
 			let error_message = null;
 			try {
 				for (let pages = 0; items.length < 12 && !source_is_done && pages < 30; pages += 1) {
-					const page = await fetch_json_with_429_retry(client, "/api/v1/files/list", {
+					const answer = await fetch_json_with_429_retry(client, "/api/v1/files/list", {
 						recursive: true,
 						limit: 100,
 						scanLimit: LIST_SCAN_MAX_ROWS_READ,
@@ -6695,6 +6639,8 @@ function create_list_scan(client) {
 						kind: "file",
 						contentTypePrefixes: MEDIA_CONTENT_TYPE_PREFIXES,
 					});
+					if (answer.status !== 200) throw new Error(answer.body.message);
+					const page = answer.body;
 					cursor = page.cursor;
 					source_is_done = page.isDone;
 					for (const item of page.items) {
@@ -6716,6 +6662,14 @@ function create_list_scan(client) {
 			return !(source_is_done && pending_items.length === 0);
 		},
 	};
+}
+/**
+ * The 200 body, or a throw carrying the route's own refusal sentence. Both call sites below feed
+ * a member-visible error, and every refusal this route declares carries `message`.
+ */
+function download_urls_body(answer) {
+	if (answer.status !== 200) throw new Error(answer.body.message);
+	return answer.body;
 }
 function create_media_url_manager(client) {
 	const cache = /* @__PURE__ */ new Map();
@@ -6742,9 +6696,9 @@ function create_media_url_manager(client) {
 		const request = (async () => {
 			await acquire_slot();
 			try {
-				const response = await fetch_json_with_429_retry(client, "/api/v1/files/download-urls", {
-					fileNodeIds: [nodeId],
-				});
+				const response = download_urls_body(
+					await fetch_json_with_429_retry(client, "/api/v1/files/download-urls", { fileNodeIds: [nodeId] }),
+				);
 				const item = response.items[0];
 				if (!item) throw new Error(response.errors[0]?.message ?? "Not found");
 				const media = {
@@ -6783,9 +6737,11 @@ function create_media_url_manager(client) {
 			const entries = batch_queue.splice(0, 12);
 			await acquire_slot();
 			try {
-				const response = await fetch_json_with_429_retry(client, "/api/v1/files/download-urls", {
-					fileNodeIds: entries.map((entry) => entry.nodeId),
-				});
+				const response = download_urls_body(
+					await fetch_json_with_429_retry(client, "/api/v1/files/download-urls", {
+						fileNodeIds: entries.map((entry) => entry.nodeId),
+					}),
+				);
 				const items_by_node_id = new Map(response.items.map((item) => [item.fileNodeId, item]));
 				const errors_by_node_id = new Map(response.errors.map((item) => [item.fileNodeId, item.message]));
 				for (const entry of entries) {

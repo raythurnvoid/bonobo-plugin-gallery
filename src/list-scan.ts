@@ -55,14 +55,20 @@ export function create_list_scan(client: BonoboClient): ListScan {
 			// page budget runs out.
 			try {
 				for (let pages = 0; items.length < PAGE_SIZE && !source_is_done && pages < LIST_PAGE_BUDGET; pages += 1) {
-					const page = (await fetch_json_with_429_retry(client, "/api/v1/files/list", {
+					const answer = await fetch_json_with_429_retry(client, "/api/v1/files/list", {
 						recursive: true,
 						limit: LIST_SCAN_LIMIT,
 						scanLimit: LIST_SCAN_MAX_ROWS_READ,
 						cursor,
 						kind: "file",
 						contentTypePrefixes: MEDIA_CONTENT_TYPE_PREFIXES,
-					})) as BonoboHttpApi["/api/v1/files/list"]["POST"]["response"][200]["body"];
+					});
+					// Every status the route declares is an answer now. A refusal ends the scan with
+					// its own sentence, which the catch below turns into the page-level message.
+					if (answer.status !== 200) {
+						throw new Error(answer.body.message);
+					}
+					const page = answer.body;
 					cursor = page.cursor;
 					source_is_done = page.isDone;
 					for (const item of page.items) {

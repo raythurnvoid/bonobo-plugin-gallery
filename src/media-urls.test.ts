@@ -28,27 +28,29 @@ function flush_microtasks(): Promise<void> {
 
 function download_url_response(nodeId: string, url: string, expiresAt: number) {
 	return {
-		items: [{ fileNodeId: nodeId, url, expiresAt }],
-		errors: [],
-		truncated: false,
+		status: 200,
+		body: { items: [{ fileNodeId: nodeId, url, expiresAt }], errors: [], truncated: false },
 	};
 }
 
 function download_urls_response(nodeIds: string[], expiresAt: number, failedNodeIds: string[] = []) {
 	return {
-		items: nodeIds
-			.filter((nodeId) => !failedNodeIds.includes(nodeId))
-			.map((nodeId) => ({ fileNodeId: nodeId, url: `u-${nodeId}`, expiresAt })),
-		errors: failedNodeIds.map((nodeId) => ({ fileNodeId: nodeId, message: "Not found" })),
-		truncated: false,
+		status: 200,
+		body: {
+			items: nodeIds
+				.filter((nodeId) => !failedNodeIds.includes(nodeId))
+				.map((nodeId) => ({ fileNodeId: nodeId, url: `u-${nodeId}`, expiresAt })),
+			errors: failedNodeIds.map((nodeId) => ({ fileNodeId: nodeId, message: "Not found" })),
+			truncated: false,
+		},
 	};
 }
 
 function make_manager() {
 	const calls: Array<{ path: string; body: { fileNodeIds: string[] }; gate: Deferred }> = [];
-	const fetchJson = vi.fn((path: string, init: { body: { fileNodeIds: string[] } }) => {
+	const fetchJson = vi.fn((path: string, body: { fileNodeIds: string[] }) => {
 		const gate = deferred();
-		calls.push({ path, body: init.body, gate });
+		calls.push({ path, body, gate });
 		return gate.promise;
 	});
 	const media = create_media_url_manager({ fetchJson } as unknown as BonoboClient);
@@ -183,11 +185,11 @@ test("initial batches and renewals share one four-slot pool", async () => {
 		body: { fileNodeIds: string[] };
 		gate: Deferred;
 	}> = [];
-	const fetchJson = vi.fn((path: string, init: { body: { fileNodeIds: string[] } }) => {
+	const fetchJson = vi.fn((path: string, body: { fileNodeIds: string[] }) => {
 		const gate = deferred();
 		active_requests += 1;
 		max_active_requests = Math.max(max_active_requests, active_requests);
-		calls.push({ path, body: init.body, gate });
+		calls.push({ path, body, gate });
 		return gate.promise.finally(() => {
 			active_requests -= 1;
 		});
@@ -266,7 +268,8 @@ test("a rate-limited batched call retries with the same ids", async () => {
 	await vi.advanceTimersByTimeAsync(0);
 	expect(fetchJson).toHaveBeenCalledTimes(1);
 
-	calls[0].gate.reject(Object.assign(new Error("rate limited"), { status: 429, retryAfterMs: 3_000 }));
+	// A declared 429 is an answer now; the shared back-off reads it and retries the same ids.
+	calls[0].gate.resolve({ status: 429, body: { message: "rate limited", retryAfterMs: 3_000 } });
 	await vi.advanceTimersByTimeAsync(3_000);
 	expect(fetchJson).toHaveBeenCalledTimes(2);
 	expect(calls[1].body.fileNodeIds).toEqual(["n1", "n2"]);
@@ -274,4 +277,21 @@ test("a rate-limited batched call retries with the same ids", async () => {
 	calls[1].gate.resolve(download_urls_response(["n1", "n2"], Date.now() + 600_000));
 	const resolved = await Promise.all(requests);
 	expect(resolved.map((media_url) => media_url.url)).toEqual(["u-n1", "u-n2"]);
+});
+
+test("a refused batched call rejects its nodes with the route's own sentence", async () => {
+	const { media, fetchJson, calls } = make_manager();
+
+	const refused = media.get_url("n1");
+	await flush_microtasks();
+	// A declared refusal resolves now. Without reading the status the manager would take the
+	// refusal body for a 200 and hand back a tile with no url.
+	calls[0].gate.resolve({ status: 403, body: { message: "Permission denied" } });
+	await expect(refused).rejects.toThrow("Permission denied");
+
+	const retried = media.get_url("n1");
+	await flush_microtasks();
+	expect(fetchJson).toHaveBeenCalledTimes(2);
+	calls[1].gate.resolve(download_urls_response(["n1"], Date.now() + 600_000));
+	expect((await retried).url).toBe("u-n1");
 });

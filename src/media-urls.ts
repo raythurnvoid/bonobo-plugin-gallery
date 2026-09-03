@@ -1,5 +1,5 @@
 import type { BonoboClient } from "bonobo-plugin-sdk/frontend";
-import type { BonoboHttpApi } from "bonobo-plugin-sdk/http-api";
+import type { BonoboHttpApi, BonoboHttpResponse } from "bonobo-plugin-sdk/http-api";
 import { fetch_json_with_429_retry } from "./retry";
 
 /** Signed URLs are re-requested when they are this close to `expiresAt`. */
@@ -14,8 +14,19 @@ export const MAX_URL_BATCH_IDS = 12;
 
 export type MediaUrl = { url: string; expiresAt: number };
 
-/** What `/api/v1/files/download-urls` answers, as the app's own route table declares it. */
-type DownloadUrlsAnswer = BonoboHttpApi["/api/v1/files/download-urls"]["POST"]["response"][200]["body"];
+/** What `/api/v1/files/download-urls` answers on a 200, as the app's own route table declares it. */
+type DownloadUrlsBody = BonoboHttpApi["/api/v1/files/download-urls"]["POST"]["response"][200]["body"];
+
+/**
+ * The 200 body, or a throw carrying the route's own refusal sentence. Both call sites below feed
+ * a member-visible error, and every refusal this route declares carries `message`.
+ */
+function download_urls_body(answer: BonoboHttpResponse<"/api/v1/files/download-urls">): DownloadUrlsBody {
+	if (answer.status !== 200) {
+		throw new Error(answer.body.message);
+	}
+	return answer.body;
+}
 
 export type MediaUrlManager = {
 	/**
@@ -74,9 +85,9 @@ export function create_media_url_manager(client: BonoboClient): MediaUrlManager 
 		const request = (async () => {
 			await acquire_slot();
 			try {
-				const response = (await fetch_json_with_429_retry(client, "/api/v1/files/download-urls", {
-					fileNodeIds: [nodeId],
-				})) as DownloadUrlsAnswer;
+				const response = download_urls_body(
+					await fetch_json_with_429_retry(client, "/api/v1/files/download-urls", { fileNodeIds: [nodeId] }),
+				);
 				const item = response.items[0];
 				if (!item) {
 					throw new Error(response.errors[0]?.message ?? "Not found");
@@ -117,9 +128,11 @@ export function create_media_url_manager(client: BonoboClient): MediaUrlManager 
 			const entries = batch_queue.splice(0, MAX_URL_BATCH_IDS);
 			await acquire_slot();
 			try {
-				const response = (await fetch_json_with_429_retry(client, "/api/v1/files/download-urls", {
-					fileNodeIds: entries.map((entry) => entry.nodeId),
-				})) as DownloadUrlsAnswer;
+				const response = download_urls_body(
+					await fetch_json_with_429_retry(client, "/api/v1/files/download-urls", {
+						fileNodeIds: entries.map((entry) => entry.nodeId),
+					}),
+				);
 				const items_by_node_id = new Map(response.items.map((item) => [item.fileNodeId, item]));
 				const errors_by_node_id = new Map(response.errors.map((item) => [item.fileNodeId, item.message]));
 				for (const entry of entries) {

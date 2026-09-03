@@ -31,12 +31,15 @@ afterEach(() => {
 test("sparse workspace: one click follows the cursor with wide file-only pages, no excessive requests", async () => {
 	// Six short filtered pages, 2 media in total: one click should need exactly 6 requests.
 	let pages_served = 0;
-	const fetchJson = vi.fn(async (_path: string, _init: { body: Record<string, unknown> }) => {
+	const fetchJson = vi.fn(async (_path: string, _body: Record<string, unknown>) => {
 		pages_served += 1;
 		return {
-			items: media_items(2, `p${pages_served}-`),
-			cursor: pages_served === 6 ? "" : `c${pages_served}`,
-			isDone: pages_served === 6,
+			status: 200,
+			body: {
+				items: media_items(2, `p${pages_served}-`),
+				cursor: pages_served === 6 ? "" : `c${pages_served}`,
+				isDone: pages_served === 6,
+			},
 		};
 	});
 	const scan = create_list_scan(make_client(fetchJson));
@@ -47,7 +50,7 @@ test("sparse workspace: one click follows the cursor with wide file-only pages, 
 	expect(result.items).toHaveLength(PAGE_SIZE);
 	expect(result.errorMessage).toBeNull();
 	expect(scan.has_more()).toBe(false);
-	expect(fetchJson.mock.calls[0][1].body).toEqual({
+	expect(fetchJson.mock.calls[0][1]).toEqual({
 		recursive: true,
 		limit: LIST_SCAN_LIMIT,
 		scanLimit: 10_000,
@@ -56,20 +59,21 @@ test("sparse workspace: one click follows the cursor with wide file-only pages, 
 		kind: "file",
 		contentTypePrefixes: ["image/", "video/"],
 	});
-	expect(fetchJson.mock.calls.map((call) => call[1].body.cursor)).toEqual([null, "c1", "c2", "c3", "c4", "c5"]);
+	expect(fetchJson.mock.calls.map((call) => call[1].cursor)).toEqual([null, "c1", "c2", "c3", "c4", "c5"]);
 });
 
 test("429 retries the same cursor and does not consume the page budget", async () => {
 	vi.useFakeTimers();
 	let served_429 = false;
 	let pages_served = 0;
-	const fetchJson = vi.fn(async (_path: string, _init: { body: Record<string, unknown> }) => {
+	const fetchJson = vi.fn(async (_path: string, _body: Record<string, unknown>) => {
 		if (!served_429) {
 			served_429 = true;
-			throw Object.assign(new Error("rate limited"), { status: 429 });
+			// A declared 429 is an answer now, not a throw. The shared back-off still swallows it.
+			return { status: 429, body: { message: "rate limited", retryAfterMs: 1_000 } };
 		}
 		pages_served += 1;
-		return { items: [], cursor: `c${pages_served}`, isDone: false };
+		return { status: 200, body: { items: [], cursor: `c${pages_served}`, isDone: false } };
 	});
 	const scan = create_list_scan(make_client(fetchJson));
 
@@ -81,8 +85,8 @@ test("429 retries the same cursor and does not consume the page budget", async (
 	expect(fetchJson).toHaveBeenCalledTimes(1 + LIST_PAGE_BUDGET);
 	expect(pages_served).toBe(LIST_PAGE_BUDGET);
 	// The rejected call and its retry used the same cursor.
-	expect(fetchJson.mock.calls[0][1].body.cursor).toBeNull();
-	expect(fetchJson.mock.calls[1][1].body.cursor).toBeNull();
+	expect(fetchJson.mock.calls[0][1].cursor).toBeNull();
+	expect(fetchJson.mock.calls[1][1].cursor).toBeNull();
 	// Capped empty scan: nothing exposed, but the scan is not complete.
 	expect(result.items).toHaveLength(0);
 	expect(result.errorMessage).toBeNull();
@@ -90,10 +94,9 @@ test("429 retries the same cursor and does not consume the page budget", async (
 });
 
 test("dense terminal page: 12 exposed, later clicks drain the buffer without new fetches", async () => {
-	const fetchJson = vi.fn(async (_path: string, _init: { body: Record<string, unknown> }) => ({
-		items: media_items(100, "n"),
-		cursor: "",
-		isDone: true,
+	const fetchJson = vi.fn(async (_path: string, _body: Record<string, unknown>) => ({
+		status: 200,
+		body: { items: media_items(100, "n"), cursor: "", isDone: true },
 	}));
 	const scan = create_list_scan(make_client(fetchJson));
 
@@ -127,9 +130,9 @@ test("dense nonterminal overflow drains before the next necessary fetch", async 
 	const fetchJson = vi.fn(async () => {
 		pages_served += 1;
 		if (pages_served === 1) {
-			return { items: media_items(25, "a"), cursor: "c1", isDone: false };
+			return { status: 200, body: { items: media_items(25, "a"), cursor: "c1", isDone: false } };
 		}
-		return { items: media_items(11, "b"), cursor: "", isDone: true };
+		return { status: 200, body: { items: media_items(11, "b"), cursor: "", isDone: true } };
 	});
 	const scan = create_list_scan(make_client(fetchJson));
 
@@ -160,12 +163,12 @@ test("dense nonterminal overflow drains before the next necessary fetch", async 
 
 test("a capped scan resumes from its saved cursor on the next click", async () => {
 	let pages_served = 0;
-	const fetchJson = vi.fn(async (_path: string, init: { body: Record<string, unknown> }) => {
+	const fetchJson = vi.fn(async (_path: string, _body: Record<string, unknown>) => {
 		pages_served += 1;
 		if (pages_served <= LIST_PAGE_BUDGET) {
-			return { items: [], cursor: `c${pages_served}`, isDone: false };
+			return { status: 200, body: { items: [], cursor: `c${pages_served}`, isDone: false } };
 		}
-		return { items: [media_item("found")], cursor: "", isDone: true };
+		return { status: 200, body: { items: [media_item("found")], cursor: "", isDone: true } };
 	});
 	const scan = create_list_scan(make_client(fetchJson));
 
@@ -175,20 +178,20 @@ test("a capped scan resumes from its saved cursor on the next click", async () =
 	expect(fetchJson).toHaveBeenCalledTimes(LIST_PAGE_BUDGET);
 
 	const resumed = await scan.load_next();
-	expect(fetchJson.mock.calls[LIST_PAGE_BUDGET][1].body.cursor).toBe(`c${LIST_PAGE_BUDGET}`);
+	expect(fetchJson.mock.calls[LIST_PAGE_BUDGET][1].cursor).toBe(`c${LIST_PAGE_BUDGET}`);
 	expect(resumed.items.map((item) => item.nodeId)).toEqual(["found"]);
 	expect(scan.has_more()).toBe(false);
 });
 
 test("items repeated across pages are deduplicated by nodeId", async () => {
 	let pages_served = 0;
-	const fetchJson = vi.fn(async (_path: string, _init: { body: Record<string, unknown> }) => {
+	const fetchJson = vi.fn(async (_path: string, _body: Record<string, unknown>) => {
 		pages_served += 1;
 		if (pages_served === 1) {
-			return { items: media_items(6, "a"), cursor: "c1", isDone: false };
+			return { status: 200, body: { items: media_items(6, "a"), cursor: "c1", isDone: false } };
 		}
 		// a5 moved past the cursor mid-pagination and comes back a second time.
-		return { items: [media_item("a5"), ...media_items(7, "b")], cursor: "", isDone: true };
+		return { status: 200, body: { items: [media_item("a5"), ...media_items(7, "b")], cursor: "", isDone: true } };
 	});
 	const scan = create_list_scan(make_client(fetchJson));
 
@@ -204,15 +207,16 @@ test("items repeated across pages are deduplicated by nodeId", async () => {
 
 test("a failure keeps partial progress and resumes from the advanced cursor", async () => {
 	let pages_served = 0;
-	const fetchJson = vi.fn(async (_path: string, _init: { body: Record<string, unknown> }) => {
+	const fetchJson = vi.fn(async (_path: string, _body: Record<string, unknown>) => {
 		pages_served += 1;
 		if (pages_served === 1) {
-			return { items: media_items(6, "a"), cursor: "c1", isDone: false };
+			return { status: 200, body: { items: media_items(6, "a"), cursor: "c1", isDone: false } };
 		}
 		if (pages_served === 2) {
+			// A 5xx still rejects, and the scan keeps what it already read.
 			throw Object.assign(new Error("service unavailable"), { status: 500 });
 		}
-		return { items: media_items(6, "b"), cursor: "", isDone: true };
+		return { status: 200, body: { items: media_items(6, "b"), cursor: "", isDone: true } };
 	});
 	const scan = create_list_scan(make_client(fetchJson));
 
@@ -222,8 +226,49 @@ test("a failure keeps partial progress and resumes from the advanced cursor", as
 	expect(scan.has_more()).toBe(true);
 
 	const resumed = await scan.load_next();
-	expect(fetchJson.mock.calls[2][1].body.cursor).toBe("c1");
+	expect(fetchJson.mock.calls[2][1].cursor).toBe("c1");
 	expect(resumed.items).toHaveLength(6);
 	expect(resumed.errorMessage).toBeNull();
 	expect(scan.has_more()).toBe(false);
+});
+
+test("a refused page ends the scan with the route's own sentence and keeps what it read", async () => {
+	let pages_served = 0;
+	const fetchJson = vi.fn(async (_path: string, _body: Record<string, unknown>) => {
+		pages_served += 1;
+		if (pages_served === 1) {
+			return { status: 200, body: { items: media_items(6, "a"), cursor: "c1", isDone: false } };
+		}
+		// A declared refusal resolves now. The scan must read it, not walk past it into a body
+		// that carries no items.
+		return { status: 403, body: { message: "Permission denied" } };
+	});
+	const scan = create_list_scan(make_client(fetchJson));
+
+	const refused = await scan.load_next();
+	expect(refused.items).toHaveLength(6);
+	expect(refused.errorMessage).toBe("Permission denied");
+	expect(scan.has_more()).toBe(true);
+	// One refusal ends this click. It is not retried like a 429.
+	expect(fetchJson).toHaveBeenCalledTimes(2);
+});
+
+test("a 429 that outlives the back-off reaches the page as its own message", async () => {
+	vi.useFakeTimers();
+	// The per-principal bucket can stay drained for longer than 9s, so the answer the shared
+	// back-off gives up on is a 429, and the page has to say something about it.
+	const fetchJson = vi.fn(async (_path: string, _body: Record<string, unknown>) => ({
+		status: 429,
+		body: { message: "Rate limit exceeded", retryAfterMs: 1_000 },
+	}));
+	const scan = create_list_scan(make_client(fetchJson));
+
+	const result_promise = scan.load_next();
+	await vi.advanceTimersByTimeAsync(9_000);
+	const result = await result_promise;
+
+	expect(fetchJson).toHaveBeenCalledTimes(3);
+	expect(result.items).toHaveLength(0);
+	expect(result.errorMessage).toBe("Rate limit exceeded");
+	expect(scan.has_more()).toBe(true);
 });

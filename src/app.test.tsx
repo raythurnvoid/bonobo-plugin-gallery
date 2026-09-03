@@ -29,7 +29,7 @@ test("a capped empty scan keeps Load more and does not show the empty state", as
 	let pages_served = 0;
 	const fetchJson = vi.fn(async () => {
 		pages_served += 1;
-		return { items: [], cursor: `c${pages_served}`, isDone: false };
+		return { status: 200, body: { items: [], cursor: `c${pages_served}`, isDone: false } };
 	});
 	render(<App client={make_client(fetchJson)} />);
 
@@ -39,7 +39,7 @@ test("a capped empty scan keeps Load more and does not show the empty state", as
 });
 
 test("a completed empty scan shows the empty state and no Load more", async () => {
-	const fetchJson = vi.fn(async () => ({ items: [], cursor: "", isDone: true }));
+	const fetchJson = vi.fn(async () => ({ status: 200, body: { items: [], cursor: "", isDone: true } }));
 	render(<App client={make_client(fetchJson)} />);
 
 	expect(await screen.findByText("No images or videos yet.")).toBeTruthy();
@@ -51,13 +51,13 @@ test("a first-load list failure shows an alert whose Retry resumes the scan", as
 	let list_calls = 0;
 	const fetchJson = vi.fn(async (path: string) => {
 		if (path === "/api/v1/files/download-urls") {
-			return { items: [], errors: [{ fileNodeId: "a1", message: "Not found" }], truncated: false };
+			return { status: 200, body: { items: [], errors: [{ fileNodeId: "a1", message: "Not found" }], truncated: false } };
 		}
 		list_calls += 1;
 		if (list_calls === 1) {
 			throw Object.assign(new Error("service unavailable"), { status: 500 });
 		}
-		return { items: [media_item("a1")], cursor: "", isDone: true };
+		return { status: 200, body: { items: [media_item("a1")], cursor: "", isDone: true } };
 	});
 	render(<App client={make_client(fetchJson)} />);
 
@@ -74,17 +74,20 @@ test("a first-load list failure shows an alert whose Retry resumes the scan", as
 
 test("grid tiles from one page coalesce into a single batched download-urls call", async () => {
 	const download_urls_bodies: string[][] = [];
-	const fetchJson = vi.fn(async (path: string, init: { body: { fileNodeIds?: string[] } }) => {
+	const fetchJson = vi.fn(async (path: string, body: { fileNodeIds?: string[] }) => {
 		if (path === "/api/v1/files/download-urls") {
-			const node_ids = init.body.fileNodeIds ?? [];
+			const node_ids = body.fileNodeIds ?? [];
 			download_urls_bodies.push(node_ids);
 			return {
-				items: node_ids.map((nodeId) => ({ fileNodeId: nodeId, url: `u-${nodeId}`, expiresAt: Date.now() + 600_000 })),
-				errors: [],
-				truncated: false,
+				status: 200,
+				body: {
+					items: node_ids.map((nodeId) => ({ fileNodeId: nodeId, url: `u-${nodeId}`, expiresAt: Date.now() + 600_000 })),
+					errors: [],
+					truncated: false,
+				},
 			};
 		}
-		return { items: [media_item("a1"), media_item("a2"), media_item("a3")], cursor: "", isDone: true };
+		return { status: 200, body: { items: [media_item("a1"), media_item("a2"), media_item("a3")], cursor: "", isDone: true } };
 	});
 	render(<App client={make_client(fetchJson)} />);
 
@@ -248,10 +251,13 @@ test("detail image failure past the episode budget shows an alert with a working
 });
 
 test("detail view reuses a fresh cached URL without minting", async () => {
-	const fetchJson = vi.fn(async (_path: string, init: { body: { fileNodeIds: string[] } }) => ({
-		items: init.body.fileNodeIds.map((nodeId) => ({ fileNodeId: nodeId, url: `u-${nodeId}`, expiresAt: Date.now() + 600_000 })),
-		errors: [],
-		truncated: false,
+	const fetchJson = vi.fn(async (_path: string, body: { fileNodeIds: string[] }) => ({
+		status: 200,
+		body: {
+			items: body.fileNodeIds.map((nodeId) => ({ fileNodeId: nodeId, url: `u-${nodeId}`, expiresAt: Date.now() + 600_000 })),
+			errors: [],
+			truncated: false,
+		},
 	}));
 	const media = create_media_url_manager(make_client(fetchJson));
 	// The grid warmed the cache for this node with a comfortably-before-expiry URL.
@@ -265,17 +271,20 @@ test("detail view reuses a fresh cached URL without minting", async () => {
 
 test("detail view re-mints when the cached URL is near expiry", async () => {
 	let mint_calls = 0;
-	const fetchJson = vi.fn(async (_path: string, init: { body: { fileNodeIds: string[] } }) => {
+	const fetchJson = vi.fn(async (_path: string, body: { fileNodeIds: string[] }) => {
 		mint_calls += 1;
 		return {
-			items: init.body.fileNodeIds.map((nodeId) => ({
-				fileNodeId: nodeId,
-				url: `u${mint_calls}-${nodeId}`,
-				// The first mint lands within the 60s expiry margin; the re-mint is long-lived.
-				expiresAt: mint_calls === 1 ? Date.now() + 30_000 : Date.now() + 600_000,
-			})),
-			errors: [],
-			truncated: false,
+			status: 200,
+			body: {
+				items: body.fileNodeIds.map((nodeId) => ({
+					fileNodeId: nodeId,
+					url: `u${mint_calls}-${nodeId}`,
+					// The first mint lands within the 60s expiry margin; the re-mint is long-lived.
+					expiresAt: mint_calls === 1 ? Date.now() + 30_000 : Date.now() + 600_000,
+				})),
+				errors: [],
+				truncated: false,
+			},
 		};
 	});
 	const media = create_media_url_manager(make_client(fetchJson));
