@@ -9,8 +9,11 @@ importers:
   .:
     dependencies:
       bonobo-plugin-sdk:
-        specifier: github:raythurnvoid/bonobo-plugin-sdk#ae1fcfb182c40233f7fe79c4b43f047a70d13b54
-        version: https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/ae1fcfb182c40233f7fe79c4b43f047a70d13b54(react@19.2.7)
+        specifier: github:raythurnvoid/bonobo-plugin-sdk#273c809925d5272cda87df5680d92a806b68eebb
+        version: https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/273c809925d5272cda87df5680d92a806b68eebb(convex@1.45.0(react@19.2.7))(react@19.2.7)
+      convex:
+        specifier: ^1.42.2
+        version: 1.45.0(react@19.2.7)
       preact:
         specifier: ^10.24.3
         version: 10.29.8
@@ -728,10 +731,11 @@ packages:
     resolution: {integrity: sha512-wvUjBtSGN7+7SjNpq/9M2Tg350UZD3q62IFZLbRAR1bSMlCo1ZaeW+BJ+D090e4hIIZLBcTDWe4Mh4jvUDajzQ==}
     engines: {node: '>= 0.4'}
 
-  bonobo-plugin-sdk@https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/ae1fcfb182c40233f7fe79c4b43f047a70d13b54:
-    resolution: {tarball: https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/ae1fcfb182c40233f7fe79c4b43f047a70d13b54}
-    version: 0.14.0
+  bonobo-plugin-sdk@https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/273c809925d5272cda87df5680d92a806b68eebb:
+    resolution: {tarball: https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/273c809925d5272cda87df5680d92a806b68eebb}
+    version: 0.15.0
     peerDependencies:
+      convex: ^1.42.2
       react: ^19.0.0
 
   call-bind-apply-helpers@1.0.2:
@@ -1763,17 +1767,11 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
-  bonobo-plugin-sdk@https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/ae1fcfb182c40233f7fe79c4b43f047a70d13b54(react@19.2.7):
+  bonobo-plugin-sdk@https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/273c809925d5272cda87df5680d92a806b68eebb(convex@1.45.0(react@19.2.7))(react@19.2.7):
     dependencies:
       '@cloudflare/workers-types': 4.20260702.1
       convex: 1.45.0(react@19.2.7)
       react: 19.2.7
-    transitivePeerDependencies:
-      - '@auth0/auth0-react'
-      - '@clerk/clerk-react'
-      - '@clerk/react'
-      - bufferutil
-      - utf-8-validate
 
   call-bind-apply-helpers@1.0.2:
     dependencies:

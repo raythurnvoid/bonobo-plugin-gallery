@@ -6006,7 +6006,7 @@ var ConvexReactClient = class {
 };
 src_default.createContext(void 0);
 //#endregion
-//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_41d938f0d202e1b7070f2dc6671281fa/node_modules/bonobo-plugin-sdk/frontend.js
+//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_f01d8a3bd905813ac2f394f783d14d3b/node_modules/bonobo-plugin-sdk/frontend.js
 /**
  * Bonobo plugin frontend SDK — hand-written browser ESM, no build step.
  *
