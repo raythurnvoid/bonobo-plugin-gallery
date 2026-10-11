@@ -254,6 +254,34 @@ test("a refused page ends the scan with the route's own sentence and keeps what 
 	expect(fetchJson).toHaveBeenCalledTimes(2);
 });
 
+test("a dead cursor restarts the scan from the top without repeating tiles", async () => {
+	let pages_served = 0;
+	const fetchJson = vi.fn(async (_path: string, _body: Record<string, unknown>) => {
+		pages_served += 1;
+		if (pages_served === 1) {
+			return { status: 200, body: { items: media_items(12, "a"), cursor: "c1", isDone: false } };
+		}
+		if (pages_served === 2) {
+			// A Move or Rename in the workspace ended the cursor.
+			return {
+				status: 400,
+				body: { message: "This list cursor changed. Start a new page.", errorCode: "invalid_cursor" },
+			};
+		}
+		return { status: 200, body: { items: [...media_items(12, "a"), ...media_items(3, "b")], cursor: "", isDone: true } };
+	});
+	const scan = create_list_scan(make_client(fetchJson));
+
+	const first = await scan.load_next();
+	expect(first.items).toHaveLength(12);
+
+	const second = await scan.load_next();
+	expect(second.errorMessage).toBeNull();
+	expect(second.items.map((item) => item.nodeId)).toEqual(["b0", "b1", "b2"]);
+	expect(scan.has_more()).toBe(false);
+	expect(fetchJson.mock.calls.map((call) => call[1].cursor)).toEqual([null, "c1", null]);
+});
+
 /** One good page, then the answer under test. Returns what the click exposed. */
 async function scan_after_answer(answer: { status: number; body: null }) {
 	let pages_served = 0;

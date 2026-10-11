@@ -30,7 +30,8 @@ export type ListScan = {
 	 * (at most LIST_PAGE_BUDGET pages) until PAGE_SIZE new unique items are exposed or the
 	 * source completes; anything fetched beyond PAGE_SIZE buffers for the next click. On a
 	 * request failure the cursor and partial progress are kept and the error message is
-	 * returned alongside whatever was already exposed.
+	 * returned alongside whatever was already exposed. On a dead cursor the scan restarts once
+	 * from the top.
 	 */
 	load_next(): Promise<{ items: FilesListItem[]; errorMessage: string | null }>;
 	/** False only at visible completion: the source is done and nothing is buffered. */
@@ -49,6 +50,7 @@ export function create_list_scan(client: BonoboClient): ListScan {
 		async load_next() {
 			const items = pending_items.splice(0, PAGE_SIZE);
 			let error_message: string | null = null;
+			let restarted = false;
 			// The server bounds how many source files one content-type scan reads, so a page
 			// may come back short or even empty while isDone is still false. Keep following the
 			// cursor until a full gallery page accumulates, the listing completes, or the
@@ -63,6 +65,20 @@ export function create_list_scan(client: BonoboClient): ListScan {
 						kind: "file",
 						contentTypePrefixes: MEDIA_CONTENT_TYPE_PREFIXES,
 					});
+					// The host ends old cursors after a host update, and after any Move or Rename in the
+					// workspace. Start again from the top, once per click. `seen_node_ids` skips the files
+					// this tab already shows, so nothing repeats.
+					if (
+						answer.status === 400 &&
+						answer.body !== null &&
+						"errorCode" in answer.body &&
+						answer.body.errorCode === "invalid_cursor" &&
+						!restarted
+					) {
+						restarted = true;
+						cursor = null;
+						continue;
+					}
 					// Every answer is a value now. A refusal ends the scan with its own sentence,
 					// which the catch below turns into the page-level message. A body that did not
 					// parse takes the same path: there is no page to scan.
