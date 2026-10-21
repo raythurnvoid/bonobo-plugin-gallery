@@ -10,10 +10,10 @@ importers:
     dependencies:
       bonobo-plugin-sdk:
         specifier: github:raythurnvoid/bonobo-plugin-sdk#e9d22e99db563356780e2073008adc89dae1f2fb
-        version: https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/e9d22e99db563356780e2073008adc89dae1f2fb(convex@1.46.0(react@19.3.0))(react@19.3.0)
+        version: https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/e9d22e99db563356780e2073008adc89dae1f2fb(convex@1.47.0(react@19.3.0))(react@19.3.0)
       convex:
-        specifier: ^1.46.0
-        version: 1.46.0(react@19.3.0)
+        specifier: ^1.47.0
+        version: 1.47.0(react@19.3.0)
       preact:
         specifier: ^10.24.3
         version: 10.29.8
@@ -768,8 +768,8 @@ packages:
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
 
-  convex@1.46.0:
-    resolution: {integrity: sha512-dhBwDQTZDOhi5SUGAX17EWNehCdNq6/UFrSL0eLZuGfMkdsQbCVWVRZCzbZ5CF+/pgvoGxtApbEoTSipqL4JTw==}
+  convex@1.47.0:
+    resolution: {integrity: sha512-B1z/lOmex7i09NASq8+2WG9rZLzGXXOSkpwGOpaNIvOs4awyW4RMgpVBjt8r2wvvHwhEBEsOr2pGYpulnmAxYQ==}
     engines: {node: '>=20.0.0', npm: '>=7.0.0'}
     hasBin: true
     peerDependencies:
@@ -1767,10 +1767,10 @@ snapshots:
     dependencies:
       possible-typed-array-names: 1.1.0
 
-  bonobo-plugin-sdk@https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/e9d22e99db563356780e2073008adc89dae1f2fb(convex@1.46.0(react@19.3.0))(react@19.3.0):
+  bonobo-plugin-sdk@https://codeload.github.com/raythurnvoid/bonobo-plugin-sdk/tar.gz/e9d22e99db563356780e2073008adc89dae1f2fb(convex@1.47.0(react@19.3.0))(react@19.3.0):
     dependencies:
       '@cloudflare/workers-types': 4.20260702.1
-      convex: 1.46.0(react@19.3.0)
+      convex: 1.47.0(react@19.3.0)
       react: 19.3.0
 
   call-bind-apply-helpers@1.0.2:
@@ -1805,7 +1805,7 @@ snapshots:
 
   convert-source-map@2.0.0: {}
 
-  convex@1.46.0(react@19.3.0):
+  convex@1.47.0(react@19.3.0):
     dependencies:
       esbuild: 0.27.0
       prettier: 3.8.3

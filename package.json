@@ -14,7 +14,7 @@
 	"packageManager": "pnpm@10.33.0",
 	"dependencies": {
 		"bonobo-plugin-sdk": "github:raythurnvoid/bonobo-plugin-sdk#e9d22e99db563356780e2073008adc89dae1f2fb",
-		"convex": "^1.46.0",
+		"convex": "^1.47.0",
 		"preact": "^10.24.3",
 		"react": "^19.3.0",
 		"react-dom": "^19.3.0"

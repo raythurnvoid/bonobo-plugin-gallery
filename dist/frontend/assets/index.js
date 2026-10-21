@@ -2354,7 +2354,7 @@ var src_default = {
 	__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED,
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/values/base64.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/values/base64.js
 var lookup = [];
 var revLookup = [];
 var Arr = Uint8Array;
@@ -2439,7 +2439,7 @@ function fromByteArray(uint8) {
 	return parts.join("");
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/common/index.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/common/index.js
 function parseArgs(args) {
 	if (args === void 0) return {};
 	if (!isSimpleObject(args)) throw new Error(`The arguments to a Convex function must be an object. Received: ${args}`);
@@ -2472,7 +2472,7 @@ function isSimpleObject(value) {
 	return isObject && isSimple;
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/values/value.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/values/value.js
 var LITTLE_ENDIAN = true;
 var MIN_INT64 = BigInt("-9223372036854775808");
 var MAX_INT64 = BigInt("9223372036854775807");
@@ -2598,6 +2598,8 @@ var MAX_VALUE_FOR_ERROR_LEN = 16384;
 function stringifyValueForError(value) {
 	const str = JSON.stringify(value, (_key, value2) => {
 		if (value2 === void 0) return "undefined";
+		if (typeof value2 === "function") return "[Function]";
+		if (typeof value2 === "symbol") return String(value2);
 		if (typeof value2 === "bigint") return `${value2.toString()}n`;
 		return value2;
 	});
@@ -2675,7 +2677,7 @@ function convexToJson(value) {
 	return convexToJsonInternal(value, value, "", false);
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/values/errors.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/values/errors.js
 var __defProp$11 = Object.defineProperty;
 var __defNormalProp$11 = (obj, key, value) =>
 	key in obj
@@ -2700,10 +2702,10 @@ var ConvexError = class extends ((_b = Error), (_a = IDENTIFYING_FIELD), _b) {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/index.js
-var version = "1.46.0";
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/index.js
+var version = "1.47.0";
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/browser/logging.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/logging.js
 var __defProp$10 = Object.defineProperty;
 var __defNormalProp$10 = (obj, key, value) =>
 	key in obj
@@ -2814,7 +2816,7 @@ function forwardData(result, error) {
 	return error;
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/udf_path_utils.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/udf_path_utils.js
 function canonicalizeUdfPath(udfPath) {
 	const pieces = udfPath.split(":");
 	let moduleName;
@@ -2848,7 +2850,7 @@ function serializePaginatedPathAndArgs(udfPath, args, options) {
 	});
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/local_state.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/local_state.js
 var __defProp$9 = Object.defineProperty;
 var __defNormalProp$9 = (obj, key, value) =>
 	key in obj
@@ -3122,7 +3124,7 @@ var LocalSyncState = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/request_manager.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/request_manager.js
 var __defProp$8 = Object.defineProperty;
 var __defNormalProp$8 = (obj, key, value) =>
 	key in obj
@@ -3315,10 +3317,10 @@ var RequestManager = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/server/functionName.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/server/functionName.js
 var functionName = Symbol.for("functionName");
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/server/components/paths.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/server/components/paths.js
 var toReferencePath = Symbol.for("toReferencePath");
 function extractReferencePath(reference) {
 	return reference[toReferencePath] ?? null;
@@ -3340,7 +3342,7 @@ function getFunctionAddress(functionReference) {
 	return functionAddress;
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/server/api.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/server/api.js
 function getFunctionName(functionReference) {
 	const address = getFunctionAddress(functionReference);
 	if (address.name === void 0) {
@@ -3386,7 +3388,7 @@ function createApi(pathParts = []) {
 }
 var anyApi = createApi();
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/optimistic_updates_impl.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/optimistic_updates_impl.js
 var __defProp$7 = Object.defineProperty;
 var __defNormalProp$7 = (obj, key, value) =>
 	key in obj
@@ -3517,7 +3519,7 @@ var OptimisticQueryResults = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/vendor/long.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/vendor/long.js
 var __defProp$6 = Object.defineProperty;
 var __defNormalProp$6 = (obj, key, value) =>
 	key in obj
@@ -3599,7 +3601,7 @@ var TWO_PWR_32_DBL = TWO_PWR_16_DBL * TWO_PWR_16_DBL;
 var TWO_PWR_64_DBL = TWO_PWR_32_DBL * TWO_PWR_32_DBL;
 var MAX_UNSIGNED_VALUE = new Long(-1, -1);
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/remote_query_set.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/remote_query_set.js
 var __defProp$5 = Object.defineProperty;
 var __defNormalProp$5 = (obj, key, value) =>
 	key in obj
@@ -3679,7 +3681,7 @@ var RemoteQuerySet = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/protocol.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/protocol.js
 function u64ToLong(encoded) {
 	const integerBytes = toByteArray(encoded);
 	return Long.fromBytesLE(Array.from(integerBytes));
@@ -3740,7 +3742,7 @@ function encodeClientMessage(message) {
 	}
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/web_socket_manager.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/web_socket_manager.js
 var __defProp$4 = Object.defineProperty;
 var __defNormalProp$4 = (obj, key, value) =>
 	key in obj
@@ -4334,7 +4336,7 @@ var WebSocketManager = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/session.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/session.js
 function newSessionId() {
 	return uuidv4();
 }
@@ -4345,7 +4347,7 @@ function uuidv4() {
 	});
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/vendor/jwt-decode/index.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/vendor/jwt-decode/index.js
 var InvalidTokenError = class extends Error {};
 InvalidTokenError.prototype.name = "InvalidTokenError";
 function b64DecodeUnicode(str) {
@@ -4396,7 +4398,7 @@ function jwtDecode(token, options) {
 	}
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/authentication_manager.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/authentication_manager.js
 var __defProp$3 = Object.defineProperty;
 var __defNormalProp$3 = (obj, key, value) =>
 	key in obj
@@ -4688,7 +4690,7 @@ var AuthenticationManager = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/metrics.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/metrics.js
 var markNames = ["convexClientConstructed", "convexWebSocketOpen", "convexFirstMessageReceived"];
 function mark(name, sessionId) {
 	const detail = { sessionId };
@@ -4716,7 +4718,7 @@ function getMarksReport(sessionId) {
 	return allMarks.map(performanceMarkToJson);
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/client.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/client.js
 var __defProp$2 = Object.defineProperty;
 var __defNormalProp$2 = (obj, key, value) =>
 	key in obj
@@ -5344,7 +5346,7 @@ var BaseConvexClient = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/pagination.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/pagination.js
 function asPaginationResult(value) {
 	if (
 		typeof value !== "object" ||
@@ -5357,7 +5359,7 @@ function asPaginationResult(value) {
 	return value;
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/paginated_query_client.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/paginated_query_client.js
 var __defProp$1 = Object.defineProperty;
 var __defNormalProp$1 = (obj, key, value) =>
 	key in obj
@@ -5666,7 +5668,7 @@ var PaginatedQueryClient = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.46.0_react@19.3.0/node_modules/convex/dist/esm/react/client.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/react/client.js
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) =>
 	key in obj
@@ -6006,7 +6008,7 @@ var ConvexReactClient = class {
 };
 src_default.createContext(void 0);
 //#endregion
-//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_e3e238bf0f70a5756c00f1c843c23893/node_modules/bonobo-plugin-sdk/frontend.js
+//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_c0bbea75345b3095a51398726c352bdc/node_modules/bonobo-plugin-sdk/frontend.js
 /**
  * The plugin doors with the types the app generated into `convex-api.d.ts`. `anyApi` builds any
  * reference at runtime, so this cast is the one place the SDK trusts that the generated file
