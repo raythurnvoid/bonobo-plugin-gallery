@@ -1,7 +1,7 @@
 {
 	"name": "@bonobo/plugin-gallery",
 	"private": true,
-	"version": "0.1.24",
+	"version": "0.1.25",
 	"type": "module",
 	"scripts": {
 		"build": "vite build && prettier --write dist/frontend/assets/index.js dist/frontend/assets/index.css && node scripts/build-manifest.mjs",
@@ -11,23 +11,23 @@
 		"test:once": "vitest run --testTimeout 30000 --hookTimeout 30000 --teardownTimeout 30000",
 		"typecheck": "tsc --noEmit"
 	},
-	"packageManager": "pnpm@10.33.0",
+	"packageManager": "pnpm@12.14.0",
 	"dependencies": {
-		"bonobo-plugin-sdk": "github:raythurnvoid/bonobo-plugin-sdk#e9d22e99db563356780e2073008adc89dae1f2fb",
-		"convex": "^1.47.0",
-		"preact": "^10.24.3",
-		"react": "^19.3.0",
-		"react-dom": "^19.3.0"
+		"bonobo-plugin-sdk": "github:raythurnvoid/bonobo-plugin-sdk#ea875be3eaf4c51df85233a52fad095b8625c1b5",
+		"convex": "1.47.0",
+		"preact": "11.0.1",
+		"react": "19.3.1",
+		"react-dom": "19.3.1"
 	},
 	"devDependencies": {
-		"@testing-library/preact": "^3.2.4",
-		"@types/react": "^19.2.17",
-		"@types/react-dom": "^19.2.3",
-		"@vitejs/plugin-react": "6.0.4",
-		"happy-dom": "20.0.11",
-		"prettier": "3.8.3",
-		"typescript": "^7.0.2",
-		"vite": "8.1.5",
-		"vitest": "4.1.10"
+		"@testing-library/preact": "3.2.4",
+		"@types/react": "19.3.0",
+		"@types/react-dom": "19.3.0",
+		"@vitejs/plugin-react": "6.1.2",
+		"happy-dom": "21.0.4",
+		"prettier": "3.9.10",
+		"typescript": "7.0.2",
+		"vite": "8.3.4",
+		"vitest": "5.0.5"
 	}
 }

@@ -30,7 +30,7 @@
 	}
 })();
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/src/constants.js
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/src/constants.js
 /** Reset all mode flags */
 var RESET_MODE = -161;
 var SVG_NAMESPACE = "http://www.w3.org/2000/svg";
@@ -38,33 +38,21 @@ var XHTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 var MATH_NAMESPACE = "http://www.w3.org/1998/Math/MathML";
 var EMPTY_OBJ = {};
 var EMPTY_ARR = [];
-var IS_NON_DIMENSIONAL = /acit|ex(?:s|g|n|p|$)|rph|grid|ows|mnc|ntw|ine[ch]|zoo|^ord|itera/i;
+var MATHML_TOKEN_ELEMENTS = /^m(i|n|o|s|text|space)$/;
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/src/util.js
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/src/util.js
 var isArray$1 = Array.isArray;
+var slice = EMPTY_ARR.slice;
+var assign$1 = Object.assign;
 /**
- * Assign properties from `props` to `obj`
- * @template O, P The obj and props types
- * @param {O} obj The object to copy properties to
- * @param {P} props The object to copy properties from
- * @returns {O & P}
- */
-function assign$1(obj, props) {
-	for (let i in props) obj[i] = props[i];
-	return obj;
-}
-/**
- * Remove a child node from its parent if attached. This is a workaround for
- * IE11 which doesn't support `Element.prototype.remove()`. Using this function
- * is smaller than including a dedicated polyfill.
- * @param {import('./index').ContainerNode} node The node to remove
+ * Remove a child node from its parent if attached.
+ * @param {import('./internal').PreactElement | null} node The node to remove
  */
 function removeNode(node) {
-	if (node && node.parentNode) node.parentNode.removeChild(node);
+	if (node && node.parentNode) node.remove();
 }
-var slice = EMPTY_ARR.slice;
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/src/diff/catch-error.js
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/src/diff/catch-error.js
 /**
  * Find the closest error boundary to a thrown error and call it
  * @param {object} error The thrown value
@@ -77,26 +65,33 @@ var slice = EMPTY_ARR.slice;
 function _catchError(error, vnode, oldVNode, errorInfo) {
 	/** @type {import('../internal').Component} */
 	let component, ctor, handled;
-	for (; (vnode = vnode._parent); )
-		if ((component = vnode._component) && !component._processingException)
+	for (; (vnode = vnode._parent);)
+		if ((component = vnode._component) && !(component._bits & 1)) {
+			component._bits |= 4;
 			try {
 				ctor = component.constructor;
-				if (ctor && ctor.getDerivedStateFromError != null) {
+				if (ctor && ctor.getDerivedStateFromError) {
 					component.setState(ctor.getDerivedStateFromError(error));
-					handled = component._dirty;
+					handled = component._bits & 8;
 				}
-				if (component.componentDidCatch != null) {
+				if (component.componentDidCatch) {
 					component.componentDidCatch(error, errorInfo || {});
-					handled = component._dirty;
+					handled = component._bits & 8;
 				}
-				if (handled) return (component._pendingError = component);
+				if (handled) {
+					component._bits |= 2;
+					return;
+				}
 			} catch (e) {
 				error = e;
+				handled = 0;
 			}
+		}
+	resetRenderCount();
 	throw error;
 }
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/src/options.js
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/src/options.js
 /**
  * The `option` object can potentially contain callback functions
  * that are called during various stages of our renderer. This is the
@@ -108,7 +103,7 @@ function _catchError(error, vnode, oldVNode, errorInfo) {
  */
 var options$1 = { _catchError };
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/src/create-element.js
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/src/create-element.js
 var vnodeId$1 = 0;
 /**
  * Create an virtual node (used for JSX)
@@ -123,16 +118,42 @@ function createElement(type, props, children) {
 	let normalizedProps = {},
 		key,
 		ref,
-		i;
+		i,
+		length = arguments.length;
 	for (i in props)
 		if (i == "key") key = props[i];
-		else if (i == "ref") ref = props[i];
+		else if (i == "ref" && typeof type != "function") ref = props[i];
 		else normalizedProps[i] = props[i];
-	if (arguments.length > 2) normalizedProps.children = arguments.length > 3 ? slice.call(arguments, 2) : children;
-	if (typeof type == "function" && type.defaultProps != null) {
-		for (i in type.defaultProps) if (normalizedProps[i] === void 0) normalizedProps[i] = type.defaultProps[i];
-	}
+	if (length > 2) normalizedProps.children = length > 3 ? slice.call(arguments, 2) : children;
 	return createVNode$1(type, normalizedProps, key, ref, null);
+}
+/**
+ * Clones the given VNode, optionally adding attributes/props and replacing its
+ * children.
+ * @param {import('./internal').VNode} vnode The virtual DOM element to clone
+ * @param {object} props Attributes/props to add when cloning
+ * @param {Array<import('./internal').ComponentChildren>} children Any additional arguments will be used
+ * as replacement children.
+ * @returns {import('./internal').VNode}
+ */
+function cloneElement$1(vnode, props, children) {
+	let normalizedProps = assign$1({}, vnode.props),
+		key,
+		ref,
+		i,
+		length = arguments.length;
+	for (i in props)
+		if (i == "key") key = props[i];
+		else if (i == "ref" && typeof vnode.type != "function") ref = props[i];
+		else normalizedProps[i] = props[i];
+	if (length > 2) normalizedProps.children = length > 3 ? slice.call(arguments, 2) : children;
+	return createVNode$1(
+		vnode.type,
+		normalizedProps,
+		key !== void 0 ? key : vnode.key,
+		ref !== void 0 ? ref : vnode.ref,
+		null,
+	);
 }
 /**
  * Create a VNode (used internally by Preact)
@@ -159,11 +180,11 @@ function createVNode$1(type, props, key, ref, original) {
 		_dom: null,
 		_component: null,
 		constructor: void 0,
-		_original: original == null ? ++vnodeId$1 : original,
+		_original: original || ++vnodeId$1,
 		_index: -1,
 		_flags: 0,
 	};
-	if (original == null && options$1.vnode != null) options$1.vnode(vnode);
+	if (!original && options$1.vnode) options$1.vnode(vnode);
 	return vnode;
 }
 function createRef() {
@@ -173,7 +194,7 @@ function Fragment(props) {
 	return props.children;
 }
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/src/component.js
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/src/component.js
 /**
  * Base Component class. Provides `setState()` and `forceUpdate()`, which
  * trigger rendering
@@ -184,6 +205,7 @@ function Fragment(props) {
 function BaseComponent(props, context) {
 	this.props = props;
 	this.context = context;
+	this._bits = 0;
 }
 /**
  * Update component state and schedule a re-render.
@@ -195,12 +217,11 @@ function BaseComponent(props, context) {
  * updated
  */
 BaseComponent.prototype.setState = function (update, callback) {
-	let s;
-	if (this._nextState != null && this._nextState != this.state) s = this._nextState;
-	else s = this._nextState = assign$1({}, this.state);
+	let s = this._nextState;
+	if (!s || s == this.state) s = this._nextState = assign$1({}, this.state);
 	if (typeof update == "function") update = update(assign$1({}, s), this.props);
 	if (update) assign$1(s, update);
-	if (update == null) return;
+	else return;
 	if (this._vnode) {
 		if (callback) this._stateCallbacks.push(callback);
 		enqueueRender(this);
@@ -214,7 +235,7 @@ BaseComponent.prototype.setState = function (update, callback) {
  */
 BaseComponent.prototype.forceUpdate = function (callback) {
 	if (this._vnode) {
-		this._force = true;
+		this._bits |= 4;
 		if (callback) this._renderCallbacks.push(callback);
 		enqueueRender(this);
 	}
@@ -239,39 +260,40 @@ function getDomSibling(vnode, childIndex) {
 	let sibling;
 	for (; childIndex < vnode._children.length; childIndex++) {
 		sibling = vnode._children[childIndex];
-		if (sibling != null && sibling._dom != null) return sibling._dom;
+		if (sibling && sibling._dom) return sibling._dom;
 	}
-	return typeof vnode.type == "function" ? getDomSibling(vnode) : null;
+	return typeof vnode.type == "function" && !vnode.props._parentDom ? getDomSibling(vnode) : null;
 }
 /**
  * Trigger in-place re-rendering of a component.
  * @param {import('./internal').Component} component The component to rerender
  */
 function renderComponent(component) {
-	if (component._parentDom && component._dirty) {
-		let oldVNode = component._vnode,
-			oldDom = oldVNode._dom,
-			commitQueue = [],
-			refQueue = [],
-			newVNode = assign$1({}, oldVNode);
+	const oldVNode = component._vnode,
+		oldDom = oldVNode._dom,
+		commitQueue = [],
+		refQueue = [];
+	const parentDom = component._parentDom;
+	if (parentDom) {
+		const newVNode = assign$1({ constructor: void 0 }, oldVNode);
 		newVNode._original = oldVNode._original + 1;
 		if (options$1.vnode) options$1.vnode(newVNode);
 		diff(
-			component._parentDom,
+			parentDom,
 			newVNode,
 			oldVNode,
 			component._globalContext,
-			component._parentDom.namespaceURI,
+			parentDom.namespaceURI,
 			oldVNode._flags & 32 ? [oldDom] : null,
 			commitQueue,
-			oldDom == null ? getDomSibling(oldVNode) : oldDom,
-			!!(oldVNode._flags & 32),
+			oldDom || getDomSibling(oldVNode),
+			oldVNode._flags & 32,
 			refQueue,
 		);
 		newVNode._original = oldVNode._original;
 		newVNode._parent._children[newVNode._index] = newVNode;
 		commitRoot(commitQueue, newVNode, refQueue);
-		oldVNode._dom = oldVNode._parent = null;
+		oldVNode._parent = oldVNode._dom = null;
 		if (newVNode._dom != oldDom) updateParentDomPointers(newVNode);
 	}
 }
@@ -279,11 +301,9 @@ function renderComponent(component) {
  * @param {import('./internal').VNode} vnode
  */
 function updateParentDomPointers(vnode) {
-	if ((vnode = vnode._parent) != null && vnode._component != null) {
-		vnode._dom = vnode._component.base = null;
-		vnode._children.some((child) => {
-			if (child != null && child._dom != null) return (vnode._dom = vnode._component.base = child._dom);
-		});
+	if ((vnode = vnode._parent) && vnode._component && !vnode.props._parentDom) {
+		vnode._dom = null;
+		vnode._children.some((child) => child && (vnode._dom = child._dom));
 		return updateParentDomPointers(vnode);
 	}
 }
@@ -293,18 +313,21 @@ function updateParentDomPointers(vnode) {
  */
 var rerenderQueue = [];
 var prevDebounce;
-var defer = typeof Promise == "function" ? Promise.prototype.then.bind(Promise.resolve()) : setTimeout;
+var rerenderCount = 0;
+function resetRenderCount() {
+	rerenderCount = 0;
+}
 /**
  * Enqueue a rerender of a component
  * @param {import('./internal').Component} c The component to rerender
  */
 function enqueueRender(c) {
 	if (
-		(!c._dirty && (c._dirty = true) && rerenderQueue.push(c) && !process._rerenderCount++) ||
+		(!(c._bits & 8) && (c._bits |= 8) && rerenderQueue.push(c) && !rerenderCount++) ||
 		prevDebounce != options$1.debounceRendering
 	) {
 		prevDebounce = options$1.debounceRendering;
-		(prevDebounce || defer)(process);
+		(prevDebounce || queueMicrotask)(process);
 	}
 }
 /**
@@ -321,15 +344,14 @@ function process() {
 			if (rerenderQueue.length > l) rerenderQueue.sort(depthSort);
 			c = rerenderQueue.shift();
 			l = rerenderQueue.length;
-			renderComponent(c);
+			if (c._bits & 8) renderComponent(c);
 		}
 	} finally {
-		rerenderQueue.length = process._rerenderCount = 0;
+		rerenderQueue.length = rerenderCount = 0;
 	}
 }
-process._rerenderCount = 0;
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/src/diff/children.js
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/src/diff/children.js
 /**
  * @typedef {import('../internal').ComponentChildren} ComponentChildren
  * @typedef {import('../internal').Component} Component
@@ -357,6 +379,7 @@ process._rerenderCount = 0;
  * siblings. In most cases, it starts out as `oldChildren[0]._dom`.
  * @param {boolean} isHydrating Whether or not we are in hydration
  * @param {any[]} refQueue an array of elements needed to invoke refs
+ * @returns {PreactElement} The next sibling DOM element to insert new elements
  */
 function diffChildren(
 	parentDom,
@@ -373,13 +396,13 @@ function diffChildren(
 ) {
 	let i, oldVNode, childVNode, newDom, firstChildDom;
 	/** @type {VNode[]} */
-	let oldChildren = (oldParentVNode && oldParentVNode._children) || EMPTY_ARR;
+	let oldChildren = oldParentVNode._children || EMPTY_ARR;
 	let newChildrenLength = renderResult.length;
 	oldDom = constructNewChildrenArray(newParentVNode, renderResult, oldChildren, oldDom, newChildrenLength);
 	for (i = 0; i < newChildrenLength; i++) {
 		childVNode = newParentVNode._children[i];
 		if (childVNode == null) continue;
-		oldVNode = (childVNode._index != -1 && oldChildren[childVNode._index]) || EMPTY_OBJ;
+		oldVNode = (~childVNode._index && oldChildren[childVNode._index]) || EMPTY_OBJ;
 		childVNode._index = i;
 		let result = diff(
 			parentDom,
@@ -394,13 +417,13 @@ function diffChildren(
 			refQueue,
 		);
 		newDom = childVNode._dom;
-		if (childVNode.ref && oldVNode.ref != childVNode.ref) {
-			if (oldVNode.ref) applyRef(oldVNode.ref, null, childVNode);
-			refQueue.push(childVNode.ref, childVNode._component || newDom, childVNode);
+		if (oldVNode.ref != childVNode.ref || oldVNode._flags & 8) {
+			if (oldVNode.ref) applyRef(oldVNode.ref, null, childVNode, oldVNode);
+			if (childVNode.ref) refQueue.push(childVNode.ref, childVNode._component || newDom, childVNode);
 		}
-		if (firstChildDom == null && newDom != null) firstChildDom = newDom;
+		firstChildDom = firstChildDom || newDom;
 		if (childVNode._flags & 4) {
-			oldDom = insert(childVNode, oldDom, parentDom);
+			oldDom = insert(childVNode, oldDom, parentDom, !oldVNode._original);
 			if (oldVNode._dom) oldVNode._dom = null;
 		} else if (typeof childVNode.type == "function" && result !== void 0) oldDom = result;
 		else if (newDom) oldDom = newDom.nextSibling;
@@ -424,30 +447,28 @@ function constructNewChildrenArray(newParentVNode, renderResult, oldChildren, ol
 	let oldChildrenLength = oldChildren.length,
 		remainingOldChildren = oldChildrenLength;
 	let skew = 0;
-	newParentVNode._children = new Array(newChildrenLength);
+	/** Whether any matched child was found far from its skewed index, i.e. a
+	 * real reorder happened and we need to compute the minimal set of moves. */
+	let moved = false;
+	/** @type {VNode[]} */
+	let newChildren = (newParentVNode._children = Array(newChildrenLength));
 	for (i = 0; i < newChildrenLength; i++) {
 		childVNode = renderResult[i];
 		if (childVNode == null || typeof childVNode == "boolean" || typeof childVNode == "function") {
-			newParentVNode._children[i] = null;
+			newChildren[i] = null;
 			continue;
-		} else if (
-			typeof childVNode == "string" ||
-			typeof childVNode == "number" ||
-			typeof childVNode == "bigint" ||
-			childVNode.constructor == String
-		)
-			childVNode = newParentVNode._children[i] = createVNode$1(null, childVNode, null, null, null);
-		else if (isArray$1(childVNode))
-			childVNode = newParentVNode._children[i] = createVNode$1(Fragment, { children: childVNode }, null, null, null);
-		else if (childVNode.constructor === void 0 && childVNode._depth > 0)
-			childVNode = newParentVNode._children[i] = createVNode$1(
+		} else if (typeof childVNode != "object" || childVNode.constructor == String)
+			childVNode = newChildren[i] = createVNode$1(null, childVNode);
+		else if (isArray$1(childVNode)) childVNode = newChildren[i] = createVNode$1(Fragment, { children: childVNode });
+		else if (childVNode.constructor === void 0 && childVNode._depth)
+			childVNode = newChildren[i] = createVNode$1(
 				childVNode.type,
 				childVNode.props,
 				childVNode.key,
-				childVNode.ref ? childVNode.ref : null,
+				childVNode.ref,
 				childVNode._original,
 			);
-		else newParentVNode._children[i] = childVNode;
+		else newChildren[i] = childVNode;
 		const skewedIndex = i + skew;
 		childVNode._parent = newParentVNode;
 		childVNode._depth = newParentVNode._depth + 1;
@@ -458,30 +479,58 @@ function constructNewChildrenArray(newParentVNode, renderResult, oldChildren, ol
 			remainingOldChildren,
 		));
 		oldVNode = null;
-		if (matchingIndex != -1) {
+		if (~matchingIndex) {
 			oldVNode = oldChildren[matchingIndex];
 			remainingOldChildren--;
 			if (oldVNode) oldVNode._flags |= 2;
 		}
-		if (oldVNode == null || oldVNode._original == null) {
-			if (matchingIndex == -1) {
+		if (!oldVNode || !oldVNode._original) {
+			if (!~matchingIndex) {
 				if (newChildrenLength > oldChildrenLength) skew--;
 				else if (newChildrenLength < oldChildrenLength) skew++;
 			}
 			if (typeof childVNode.type != "function") childVNode._flags |= 4;
-		} else if (matchingIndex != skewedIndex)
+		} else {
+			childVNode._flags |= 2;
 			if (matchingIndex == skewedIndex - 1) skew--;
 			else if (matchingIndex == skewedIndex + 1) skew++;
-			else {
+			else if (matchingIndex != skewedIndex) {
 				if (matchingIndex > skewedIndex) skew--;
 				else skew++;
-				childVNode._flags |= 4;
+				moved = true;
+			}
+		}
+	}
+	if (moved) {
+		/** @type {number[]} tails[x] is the smallest old index ending an increasing subsequence of length x+1 */
+		let tails = [];
+		/** @type {number[]} length of the longest increasing subsequence ending at child i */
+		let lisLengths = [];
+		for (i = 0; i < newChildrenLength; i++) {
+			childVNode = newChildren[i];
+			if (childVNode && childVNode._flags & 2) {
+				let lo = 0,
+					hi = tails.length;
+				while (lo < hi) {
+					const mid = (lo + hi) >> 1;
+					if (tails[mid] < childVNode._index) lo = mid + 1;
+					else hi = mid;
+				}
+				tails[lo] = childVNode._index;
+				lisLengths[i] = lo + 1;
+			}
+		}
+		skew = tails.length;
+		while (i--)
+			if (lisLengths[i]) {
+				if (lisLengths[i] == skew) skew--;
+				else newChildren[i]._flags |= 4;
 			}
 	}
 	if (remainingOldChildren)
 		for (i = 0; i < oldChildrenLength; i++) {
 			oldVNode = oldChildren[i];
-			if (oldVNode != null && (oldVNode._flags & 2) == 0) {
+			if (oldVNode && !(oldVNode._flags & 2)) {
 				if (oldVNode._dom == oldDom) oldDom = getDomSibling(oldVNode);
 				unmount(oldVNode, oldVNode);
 			}
@@ -492,23 +541,36 @@ function constructNewChildrenArray(newParentVNode, renderResult, oldChildren, ol
  * @param {VNode} parentVNode
  * @param {PreactElement} oldDom
  * @param {PreactElement} parentDom
+ * @param {boolean} isMounting
  * @returns {PreactElement}
  */
-function insert(parentVNode, oldDom, parentDom) {
+function insert(parentVNode, oldDom, parentDom, isMounting) {
 	if (typeof parentVNode.type == "function") {
+		if (parentVNode.props._parentDom) return oldDom;
 		let children = parentVNode._children;
-		for (let i = 0; children && i < children.length; i++)
-			if (children[i]) {
-				children[i]._parent = parentVNode;
-				oldDom = insert(children[i], oldDom, parentDom);
-			}
+		if (children) {
+			for (let i = 0; i < children.length; i++)
+				if (children[i]) {
+					children[i]._parent = parentVNode;
+					oldDom = insert(children[i], oldDom, parentDom, false);
+				}
+		}
 		return oldDom;
-	} else if (parentVNode._dom != oldDom) {
-		if (oldDom && parentVNode.type && !oldDom.parentNode) oldDom = getDomSibling(parentVNode);
-		oldDom = parentDom.insertBefore(parentVNode._dom, oldDom || null);
+	} else {
+		if (oldDom && !oldDom.parentNode) {
+			oldDom = getDomSibling(parentVNode);
+			if (oldDom && !oldDom.parentNode) oldDom = null;
+		}
+		let next = oldDom;
+		while (next && next.nodeType == 8) next = next.nextSibling;
+		if (parentVNode._dom != next) {
+			if (!isMounting && parentDom.moveBefore && parentVNode._dom.parentNode)
+				parentDom.moveBefore(parentVNode._dom, oldDom);
+			else parentDom.insertBefore(parentVNode._dom, oldDom || null);
+		}
+		oldDom = parentVNode._dom;
 	}
-	do oldDom = oldDom && oldDom.nextSibling;
-	while (oldDom != null && oldDom.nodeType == 8);
+	while ((oldDom = oldDom && oldDom.nextSibling) && oldDom.nodeType == 8);
 	return oldDom;
 }
 /**
@@ -519,12 +581,13 @@ function insert(parentVNode, oldDom, parentDom) {
  */
 function toChildArray(children, out) {
 	out = out || [];
-	if (children == null || typeof children == "boolean") {
-	} else if (isArray$1(children))
-		children.some((child) => {
-			toChildArray(child, out);
-		});
-	else out.push(children);
+	if (children != null && typeof children != "boolean") {
+		if (isArray$1(children))
+			children.some((child) => {
+				toChildArray(child, out);
+			});
+		else out.push(children);
+	}
 	return out;
 }
 /**
@@ -538,7 +601,7 @@ function findMatchingIndex(childVNode, oldChildren, skewedIndex, remainingOldChi
 	const key = childVNode.key;
 	const type = childVNode.type;
 	let oldVNode = oldChildren[skewedIndex];
-	const matched = oldVNode != null && (oldVNode._flags & 2) == 0;
+	const matched = oldVNode && !(oldVNode._flags & 2);
 	let shouldSearch = remainingOldChildren > (matched ? 1 : 0);
 	if ((oldVNode === null && key == null) || (matched && key == oldVNode.key && type == oldVNode.type))
 		return skewedIndex;
@@ -548,22 +611,18 @@ function findMatchingIndex(childVNode, oldChildren, skewedIndex, remainingOldChi
 		while (x >= 0 || y < oldChildren.length) {
 			const childIndex = x >= 0 ? x-- : y++;
 			oldVNode = oldChildren[childIndex];
-			if (oldVNode != null && (oldVNode._flags & 2) == 0 && key == oldVNode.key && type == oldVNode.type)
-				return childIndex;
+			if (oldVNode && !(oldVNode._flags & 2) && key == oldVNode.key && type == oldVNode.type) return childIndex;
 		}
 	}
 	return -1;
 }
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/src/diff/props.js
-var _id = Math.random().toString(8);
-var EVENT_DISPATCHED = "__d" + _id;
-var EVENT_ATTACHED = "__a" + _id;
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/src/diff/props.js
+var EVENT_DISPATCHED = Symbol();
 function setStyle(style, key, value) {
-	if (key[0] == "-") style.setProperty(key, value == null ? "" : value);
-	else if (value == null) style[key] = "";
-	else if (typeof value != "number" || IS_NON_DIMENSIONAL.test(key)) style[key] = value;
-	else style[key] = value + "px";
+	if (value == null) value = "";
+	if (key[0] == "-") style.setProperty(key, value);
+	else style[key] = value;
 }
 var CAPTURE_REGEX = /(PointerCapture)$|Capture$/i;
 var eventClock = 0;
@@ -577,7 +636,7 @@ var eventClock = 0;
  */
 function setProperty(dom, name, value, oldValue, namespace) {
 	let useCapture;
-	o: if (name == "style")
+	o: if (name == "style") {
 		if (typeof value == "string") dom.style.cssText = value;
 		else {
 			if (typeof oldValue == "string") dom.style.cssText = oldValue = "";
@@ -588,19 +647,17 @@ function setProperty(dom, name, value, oldValue, namespace) {
 				for (name in value) if (!oldValue || value[name] != oldValue[name]) setStyle(dom.style, name, value[name]);
 			}
 		}
-	else if (name[0] == "o" && name[1] == "n") {
-		useCapture = name != (name = name.replace(CAPTURE_REGEX, "$1"));
-		const lowerCaseName = name.toLowerCase();
-		if (lowerCaseName in dom || name == "onFocusOut" || name == "onFocusIn") name = lowerCaseName.slice(2);
-		else name = name.slice(2);
-		if (!dom._listeners) dom._listeners = {};
-		dom._listeners[name + useCapture] = value;
-		if (value)
-			if (!oldValue) {
-				value[EVENT_ATTACHED] = eventClock;
-				dom.addEventListener(name, useCapture ? eventProxyCapture : eventProxy, useCapture);
-			} else value[EVENT_ATTACHED] = oldValue[EVENT_ATTACHED];
-		else dom.removeEventListener(name, useCapture ? eventProxyCapture : eventProxy, useCapture);
+	} else if (name[0] == "o" && name[1] == "n") {
+		(dom._listeners || (dom._listeners = {}))[name] = value;
+		if (!value || !oldValue) {
+			const proxy = eventProxies[name] || (eventProxies[name] = createEventProxy(name));
+			(dom._attached || (dom._attached = {}))[name] = eventClock;
+			useCapture = name != (name = name.replace(CAPTURE_REGEX, "$1"));
+			name = name.slice(2);
+			if (name[0] < "a") name = name.toLowerCase();
+			if (value) dom.addEventListener(name, proxy, useCapture);
+			else dom.removeEventListener(name, proxy, useCapture);
+		}
 	} else {
 		if (namespace == "http://www.w3.org/2000/svg") name = name.replace(/xlink(H|:h)/, "h").replace(/sName$/, "s");
 		else if (
@@ -629,10 +686,10 @@ function setProperty(dom, name, value, oldValue, namespace) {
 }
 /**
  * Create an event proxy function.
- * @param {boolean} useCapture Is the event handler for the capture phase.
+ * @param {string} name The prop name the handler is stored under.
  * @private
  */
-function createEventProxy(useCapture) {
+function createEventProxy(name) {
 	/**
 	 * Proxy an event to hooked event handlers
 	 * @param {import('../internal').PreactEvent} e The event object from the browser
@@ -640,18 +697,19 @@ function createEventProxy(useCapture) {
 	 */
 	return function (e) {
 		if (this._listeners) {
-			const eventHandler = this._listeners[e.type + useCapture];
+			const eventHandler = this._listeners[name];
 			if (e[EVENT_DISPATCHED] == null) e[EVENT_DISPATCHED] = eventClock++;
-			else if (e[EVENT_DISPATCHED] < eventHandler[EVENT_ATTACHED]) return;
+			else if (e[EVENT_DISPATCHED] < this._attached[name]) return;
 			return eventHandler(options$1.event ? options$1.event(e) : e);
 		}
 	};
 }
-var eventProxy = createEventProxy(false);
-var eventProxyCapture = createEventProxy(true);
+/** @type {Record<string, (e: Event) => any>} */
+var eventProxies = {};
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/src/diff/index.js
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/src/diff/index.js
 /**
+ * @typedef {import('../internal').ComponentType} ComponentType
  * @typedef {import('../internal').ComponentChildren} ComponentChildren
  * @typedef {import('../internal').Component} Component
  * @typedef {import('../internal').PreactElement} PreactElement
@@ -693,26 +751,39 @@ function diff(
 ) {
 	/** @type {any} */
 	let tmp,
+		resumed,
 		newType = newVNode.type;
 	if (newVNode.constructor !== void 0) return null;
-	if (oldVNode._flags & 128) {
-		isHydrating = !!(oldVNode._flags & 32);
-		oldDom = newVNode._dom = oldVNode._dom;
-		excessDomChildren = [oldDom];
+	if (oldVNode._flags & 128 && ((isHydrating = oldVNode._flags & 32), (tmp = oldVNode._component._excess))) {
+		newVNode._flags |= isHydrating;
+		resumed = excessDomChildren = [];
+		if (tmp.nodeType == 8)
+			for (let depth = 1, node = tmp.nextSibling; node; node = node.nextSibling) {
+				if (node.nodeType == 8) {
+					if (node.data.startsWith("$s")) depth++;
+					else if (node.data.startsWith("/$s") && !--depth) break;
+				}
+				excessDomChildren.push(node);
+			}
+		else excessDomChildren.push(tmp);
+		oldDom = excessDomChildren[0];
 	}
 	if ((tmp = options$1._diff)) tmp(newVNode);
 	outer: if (typeof newType == "function") {
 		let oldCommitQueueLength = commitQueue.length;
 		try {
-			let c, isNew, oldProps, oldState, snapshot, clearProcessingException;
-			let newProps = newVNode.props;
-			const isClassComponent = newType.prototype && newType.prototype.render;
+			let c,
+				oldProps,
+				oldState,
+				snapshot,
+				newProps = newVNode.props;
+			const isClassComponent = (tmp = newType.prototype) && tmp.render;
 			tmp = newType.contextType;
-			let provider = tmp && globalContext[tmp._id];
-			let componentContext = tmp ? (provider ? provider.props.value : tmp._defaultValue) : globalContext;
+			const provider = tmp && globalContext[tmp._id];
+			const componentContext = tmp ? (provider ? provider.props.value : tmp._defaultValue) : globalContext;
 			if (oldVNode._component) {
 				c = newVNode._component = oldVNode._component;
-				clearProcessingException = c._processingException = c._pendingError;
+				if (c._bits & 2) c._bits |= 1;
 			} else {
 				if (isClassComponent) newVNode._component = c = new newType(newProps, componentContext);
 				else {
@@ -723,40 +794,41 @@ function diff(
 				if (provider) provider.sub(c);
 				if (!c.state) c.state = {};
 				c._globalContext = globalContext;
-				isNew = c._dirty = true;
+				c._bits |= 8;
 				c._renderCallbacks = [];
 				c._stateCallbacks = [];
 			}
-			if (isClassComponent && c._nextState == null) c._nextState = c.state;
-			if (isClassComponent && newType.getDerivedStateFromProps != null) {
-				if (c._nextState == c.state) c._nextState = assign$1({}, c._nextState);
-				assign$1(c._nextState, newType.getDerivedStateFromProps(newProps, c._nextState));
+			if (isClassComponent) {
+				if (!c._nextState) c._nextState = c.state;
+				if (newType.getDerivedStateFromProps) {
+					if (c._nextState == c.state) c._nextState = assign$1({}, c._nextState);
+					assign$1(c._nextState, newType.getDerivedStateFromProps(newProps, c._nextState));
+				}
 			}
 			oldProps = c.props;
 			oldState = c.state;
 			c._vnode = newVNode;
-			if (isNew) {
-				if (isClassComponent && newType.getDerivedStateFromProps == null && c.componentWillMount != null)
-					c.componentWillMount();
-				if (isClassComponent && c.componentDidMount != null) c._renderCallbacks.push(c.componentDidMount);
+			if (!oldVNode._component) {
+				if (isClassComponent && !newType.getDerivedStateFromProps && c.componentWillMount) c.componentWillMount();
+				if (isClassComponent && c.componentDidMount) c._renderCallbacks.push(c.componentDidMount);
 			} else {
 				if (
 					isClassComponent &&
-					newType.getDerivedStateFromProps == null &&
+					!newType.getDerivedStateFromProps &&
 					newProps !== oldProps &&
-					c.componentWillReceiveProps != null
+					c.componentWillReceiveProps
 				)
 					c.componentWillReceiveProps(newProps, componentContext);
 				if (
-					newVNode._original == oldVNode._original ||
-					(!c._force &&
-						c.shouldComponentUpdate != null &&
+					(newVNode._original == oldVNode._original && !(c._bits & 8)) ||
+					(!(c._bits & 4) &&
+						c.shouldComponentUpdate &&
 						c.shouldComponentUpdate(newProps, c._nextState, componentContext) === false)
 				) {
 					if (newVNode._original != oldVNode._original) {
 						c.props = newProps;
 						c.state = c._nextState;
-						c._dirty = false;
+						c._bits &= -9;
 					}
 					newVNode._dom = oldVNode._dom;
 					newVNode._children = oldVNode._children;
@@ -769,8 +841,8 @@ function diff(
 					oldDom = getDomSibling(oldVNode);
 					break outer;
 				}
-				if (c.componentWillUpdate != null) c.componentWillUpdate(newProps, c._nextState, componentContext);
-				if (isClassComponent && c.componentDidUpdate != null)
+				if (c.componentWillUpdate) c.componentWillUpdate(newProps, c._nextState, componentContext);
+				if (isClassComponent && c.componentDidUpdate)
 					c._renderCallbacks.push(() => {
 						c.componentDidUpdate(oldProps, oldState, snapshot);
 					});
@@ -778,28 +850,41 @@ function diff(
 			c.context = componentContext;
 			c.props = newProps;
 			c._parentDom = parentDom;
-			c._force = false;
+			c._bits &= -5;
 			let renderHook = options$1._render,
 				count = 0;
 			if (isClassComponent) {
 				c.state = c._nextState;
-				c._dirty = false;
+				c._bits &= -9;
 				if (renderHook) renderHook(newVNode);
 				tmp = c.render(c.props, c.state, c.context);
 				EMPTY_ARR.push.apply(c._renderCallbacks, c._stateCallbacks);
 				c._stateCallbacks = [];
 			} else
 				do {
-					c._dirty = false;
+					c._bits &= -9;
 					if (renderHook) renderHook(newVNode);
 					tmp = c.render(c.props, c.state, c.context);
 					c.state = c._nextState;
-				} while (c._dirty && ++count < 25);
+				} while (c._bits & 8 && ++count < 25);
 			c.state = c._nextState;
-			if (c.getChildContext != null) globalContext = assign$1(assign$1({}, globalContext), c.getChildContext());
-			if (isClassComponent && !isNew && c.getSnapshotBeforeUpdate != null)
+			if (c.getChildContext) globalContext = assign$1({}, globalContext, c.getChildContext());
+			if (isClassComponent && oldVNode._component && c.getSnapshotBeforeUpdate)
 				snapshot = c.getSnapshotBeforeUpdate(oldProps, oldState);
-			let renderResult = tmp != null && tmp.type === Fragment && tmp.key == null ? cloneNode(tmp.props.children) : tmp;
+			const renderResult = tmp && tmp.type === Fragment && tmp.key == null ? tmp.props.children : tmp;
+			if (newProps._parentDom) {
+				tmp = oldDom;
+				parentDom = newProps._parentDom;
+				namespace = parentDom.namespaceURI;
+				isHydrating = excessDomChildren = null;
+				if (oldVNode.props && oldVNode.props._parentDom != parentDom) {
+					/** @type {VNode[]} */ oldVNode._children.some((child) => {
+						if (child) unmount(child, child);
+					});
+					oldVNode._children = null;
+				}
+				oldDom = oldVNode._children ? getDomSibling(oldVNode, 0) : null;
+			}
 			oldDom = diffChildren(
 				parentDom,
 				isArray$1(renderResult) ? renderResult : [renderResult],
@@ -813,29 +898,54 @@ function diff(
 				isHydrating,
 				refQueue,
 			);
-			c.base = newVNode._dom;
+			if (newProps._parentDom) {
+				newVNode._dom = null;
+				oldDom = tmp;
+			}
 			newVNode._flags &= RESET_MODE;
+			if (oldVNode._flags & 128) c._excess = null;
+			if (resumed) resumed.some(removeNode);
 			if (c._renderCallbacks.length) commitQueue.push(c);
-			if (clearProcessingException) c._pendingError = c._processingException = null;
+			if (c._bits & 1) c._bits &= -4;
 		} catch (e) {
 			commitQueue.length = oldCommitQueueLength;
 			newVNode._original = null;
-			if (isHydrating || excessDomChildren != null) {
+			if (isHydrating || excessDomChildren) {
 				if (e.then) {
+					let commentMarkersToFind = 0,
+						startMarker;
 					newVNode._flags |= isHydrating ? 160 : 128;
-					while (oldDom && oldDom.nodeType == 8 && oldDom.nextSibling) oldDom = oldDom.nextSibling;
-					if (excessDomChildren != null) excessDomChildren[excessDomChildren.indexOf(oldDom)] = null;
+					if (excessDomChildren) {
+						let i = excessDomChildren.indexOf(oldDom || void 0),
+							child;
+						if (!~i) i = excessDomChildren.length;
+						while ((child = excessDomChildren[i - 1]) && child.nodeType == 8) i--;
+						for (; i < excessDomChildren.length; i++) {
+							child = excessDomChildren[i];
+							if (!child) continue;
+							excessDomChildren[i] = null;
+							if (child.nodeType == 8) {
+								if (child.data.startsWith("$s")) {
+									if (!commentMarkersToFind++) startMarker = child;
+								} else if (commentMarkersToFind && child.data.startsWith("/$s") && !--commentMarkersToFind) {
+									oldDom = child;
+									break;
+								}
+							} else if (!commentMarkersToFind) break;
+						}
+					}
+					if (!startMarker) {
+						while (oldDom && oldDom.nodeType == 8 && oldDom.nextSibling) oldDom = oldDom.nextSibling;
+						startMarker = oldDom;
+					}
+					if (!newVNode._component._excess) newVNode._component._excess = startMarker;
 					newVNode._dom = oldDom;
-				} else if (excessDomChildren != null)
-					for (let i = excessDomChildren.length; i--; ) removeNode(excessDomChildren[i]);
+				} else if (excessDomChildren) excessDomChildren.some(removeNode);
 			} else newVNode._dom = oldVNode._dom;
-			if (newVNode._children == null) newVNode._children = oldVNode._children || [];
+			if (!newVNode._children) newVNode._children = oldVNode._children || [];
 			if (!e.then) markAsForce(newVNode);
 			options$1._catchError(e, newVNode, oldVNode);
 		}
-	} else if (excessDomChildren == null && newVNode._original == oldVNode._original) {
-		newVNode._children = oldVNode._children;
-		newVNode._dom = oldVNode._dom;
 	} else
 		oldDom = newVNode._dom = diffElementNodes(
 			oldVNode._dom,
@@ -847,13 +957,14 @@ function diff(
 			commitQueue,
 			isHydrating,
 			refQueue,
+			parentDom,
 		);
 	if ((tmp = options$1.diffed)) tmp(newVNode);
 	return newVNode._flags & 128 ? void 0 : oldDom;
 }
 function markAsForce(vnode) {
 	if (vnode) {
-		if (vnode._component) vnode._component._force = true;
+		if (vnode._component) vnode._component._bits |= 4;
 		if (vnode._children) vnode._children.some(markAsForce);
 	}
 }
@@ -863,7 +974,7 @@ function markAsForce(vnode) {
  * @param {VNode} root
  */
 function commitRoot(commitQueue, root, refQueue) {
-	for (let i = 0; i < refQueue.length; i++) applyRef(refQueue[i], refQueue[++i], refQueue[++i]);
+	for (let i = 0; i < refQueue.length;) applyRef(refQueue[i++], refQueue[i++], refQueue[i++]);
 	if (options$1._commit) options$1._commit(root, commitQueue);
 	commitQueue.some((c) => {
 		try {
@@ -876,12 +987,6 @@ function commitRoot(commitQueue, root, refQueue) {
 			options$1._catchError(e, c._vnode);
 		}
 	});
-}
-function cloneNode(node) {
-	if (typeof node != "object" || node == null || node._depth > 0) return node;
-	if (isArray$1(node)) return node.map(cloneNode);
-	if (node.constructor !== void 0) return null;
-	return assign$1({}, node);
 }
 /**
  * Diff two virtual nodes representing DOM element
@@ -896,6 +1001,9 @@ function cloneNode(node) {
  * to invoke in commitRoot
  * @param {boolean} isHydrating Whether or not we are in hydration
  * @param {any[]} refQueue an array of elements needed to invoke refs
+ * @param {PreactElement} parentDom The parent this element will be inserted
+ * into; new nodes are created from its ownerDocument (e.g. iframes), or from
+ * the global document for containers that don't have one
  * @returns {PreactElement}
  */
 function diffElementNodes(
@@ -908,10 +1016,11 @@ function diffElementNodes(
 	commitQueue,
 	isHydrating,
 	refQueue,
+	parentDom,
 ) {
 	let oldProps = oldVNode.props || EMPTY_OBJ;
-	let newProps = newVNode.props;
-	let nodeType = newVNode.type;
+	const newProps = newVNode.props;
+	const nodeType = newVNode.type;
 	/** @type {any} */
 	let i;
 	/** @type {{ __html?: string }} */
@@ -926,34 +1035,34 @@ function diffElementNodes(
 	if (nodeType == "svg") namespace = SVG_NAMESPACE;
 	else if (nodeType == "math") namespace = MATH_NAMESPACE;
 	else if (!namespace) namespace = XHTML_NAMESPACE;
-	if (excessDomChildren != null)
+	if (excessDomChildren)
 		for (i = 0; i < excessDomChildren.length; i++) {
 			value = excessDomChildren[i];
-			if (
-				value &&
-				"setAttribute" in value == !!nodeType &&
-				(nodeType ? value.localName == nodeType : value.nodeType == 3)
-			) {
+			if (value && (nodeType ? value.localName == nodeType : value.nodeType == 3)) {
 				dom = value;
 				excessDomChildren[i] = null;
 				break;
 			}
 		}
-	if (dom == null) {
-		if (nodeType == null) return document.createTextNode(newProps);
-		dom = document.createElementNS(namespace, nodeType, newProps.is && newProps);
+	if (!dom) {
+		const doc = parentDom.ownerDocument || document;
+		if (!nodeType) return doc.createTextNode(newProps);
+		dom = doc.createElementNS(namespace, nodeType, newProps.is && newProps);
 		if (isHydrating) {
 			if (options$1._hydrationMismatch) options$1._hydrationMismatch(newVNode, excessDomChildren);
 			isHydrating = false;
 		}
 		excessDomChildren = null;
 	}
-	if (nodeType == null) {
+	if (!nodeType) {
 		if (oldProps !== newProps && (!isHydrating || dom.data != newProps)) dom.data = newProps;
 	} else {
+		parentDom = nodeType == "template" ? dom.content : dom;
 		excessDomChildren =
-			nodeType == "textarea" && newProps.defaultValue != null ? null : excessDomChildren && slice.call(dom.childNodes);
-		if (!isHydrating && excessDomChildren != null) {
+			nodeType == "textarea" && newProps.defaultValue != null
+				? null
+				: excessDomChildren && slice.call(parentDom.childNodes);
+		if (!isHydrating && excessDomChildren) {
 			oldProps = {};
 			for (i = 0; i < dom.attributes.length; i++) {
 				value = dom.attributes[i];
@@ -971,13 +1080,17 @@ function diffElementNodes(
 			)
 				setProperty(dom, i, null, value, namespace);
 		}
+		const shouldRevalidateProps = oldVNode._flags & 1;
 		for (i in newProps) {
 			value = newProps[i];
 			if (i == "children") newChildren = value;
 			else if (i == "dangerouslySetInnerHTML") newHtml = value;
 			else if (i == "value") inputValue = value;
 			else if (i == "checked") checked = value;
-			else if ((!isHydrating || typeof value == "function") && oldProps[i] !== value)
+			else if (
+				(!isHydrating || typeof value == "function") &&
+				(oldProps[i] !== value || (shouldRevalidateProps && value != null))
+			)
 				setProperty(dom, i, value, oldProps[i], namespace);
 		}
 		if (newHtml) {
@@ -985,31 +1098,31 @@ function diffElementNodes(
 				dom.innerHTML = newHtml.__html;
 			newVNode._children = [];
 		} else {
-			if (oldHtml) dom.innerHTML = "";
+			if (oldHtml) dom.textContent = "";
+			if (
+				nodeType == "foreignObject" ||
+				(namespace == "http://www.w3.org/1998/Math/MathML" && MATHML_TOKEN_ELEMENTS.test(nodeType))
+			)
+				namespace = XHTML_NAMESPACE;
 			diffChildren(
-				newVNode.type == "template" ? dom.content : dom,
+				parentDom,
 				isArray$1(newChildren) ? newChildren : [newChildren],
 				newVNode,
 				oldVNode,
 				globalContext,
-				nodeType == "foreignObject" ? XHTML_NAMESPACE : namespace,
+				namespace,
 				excessDomChildren,
 				commitQueue,
 				excessDomChildren ? excessDomChildren[0] : oldVNode._children && getDomSibling(oldVNode, 0),
 				isHydrating,
 				refQueue,
 			);
-			if (excessDomChildren != null) for (i = excessDomChildren.length; i--; ) removeNode(excessDomChildren[i]);
+			if (excessDomChildren) excessDomChildren.some(removeNode);
 		}
 		if (!isHydrating || nodeType == "textarea") {
 			i = "value";
-			if (nodeType == "progress" && inputValue == null) dom.removeAttribute("value");
-			else if (
-				inputValue != void 0 &&
-				(inputValue !== dom[i] ||
-					(nodeType == "progress" && !inputValue) ||
-					(nodeType == "option" && inputValue != oldProps[i]))
-			)
+			if (nodeType == "progress" && inputValue == null) dom.removeAttribute(i);
+			else if (inputValue != void 0 && (inputValue !== dom[i] || (nodeType == "progress" && !inputValue)))
 				setProperty(dom, i, inputValue, oldProps[i], namespace);
 			i = "checked";
 			if (checked != void 0 && checked != dom[i]) setProperty(dom, i, checked, oldProps[i], namespace);
@@ -1019,16 +1132,20 @@ function diffElementNodes(
 }
 /**
  * Invoke or update a ref, depending on whether it is a function or object ref.
- * @param {Ref<any> & { _unmount?: unknown }} ref
- * @param {any} value
+ * @param {Ref<any>} ref
+ * @param {any} value The element or component to attach, or `null` to detach
  * @param {VNode} vnode
+ * @param {any} [owner] The vnode the ref is detached from
  */
-function applyRef(ref, value, vnode) {
+function applyRef(ref, value, vnode, owner) {
 	try {
 		if (typeof ref == "function") {
-			let hasRefUnmount = typeof ref._unmount == "function";
-			if (hasRefUnmount) ref._unmount();
-			if (!hasRefUnmount || value != null) ref._unmount = ref(value);
+			if (value) value._refCleanup = ref(value) || 1;
+			else if (owner && (owner = owner._component || owner._dom) && (value = owner._refCleanup)) {
+				owner._refCleanup = null;
+				if (typeof value == "function") value();
+				else ref(null);
+			}
 		} else ref.current = value;
 	} catch (e) {
 		options$1._catchError(e, vnode);
@@ -1044,66 +1161,60 @@ function applyRef(ref, value, vnode) {
 function unmount(vnode, parentVNode, skipRemove) {
 	let r;
 	if (options$1.unmount) options$1.unmount(vnode);
-	if ((r = vnode.ref)) {
-		if (!r.current || r.current == vnode._dom) applyRef(r, null, parentVNode);
-	}
-	if ((r = vnode._component) != null) {
+	if ((r = vnode.ref) && (!r.current || r.current == vnode._dom)) applyRef(r, null, parentVNode, vnode);
+	if ((r = vnode._component)) {
 		if (r.componentWillUnmount)
 			try {
 				r.componentWillUnmount();
 			} catch (e) {
 				options$1._catchError(e, parentVNode);
 			}
-		r.base = r._parentDom = r._globalContext = null;
+		r._parentDom = r._globalContext = null;
 	}
 	if ((r = vnode._children)) {
 		for (let i = 0; i < r.length; i++)
-			if (r[i]) unmount(r[i], parentVNode, skipRemove || typeof vnode.type != "function");
+			if (r[i])
+				unmount(r[i], parentVNode, typeof vnode.type == "function" ? skipRemove && !vnode.props._parentDom : true);
 	}
-	if (!skipRemove) removeNode(vnode._dom);
-	vnode._component = vnode._parent = vnode._dom = void 0;
+	if ((r = vnode._dom)) {
+		if (!skipRemove) removeNode(r);
+		if (r._listeners) r._listeners = null;
+	}
+	vnode._dom = vnode._component = vnode._parent = null;
 }
 /** The `.render()` method for a PFC backing instance. */
 function doRender(props, state, context) {
 	return this.constructor(props, context);
 }
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/src/render.js
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/src/render.js
 /**
  * Render a Preact virtual node into a DOM element
  * @param {import('./internal').ComponentChild} vnode The virtual node to render
  * @param {import('./internal').PreactElement} parentDom The DOM element to render into
- * @param {import('./internal').PreactElement | object} [replaceNode] Optional: Attempt to re-use an
- * existing DOM tree rooted at `replaceNode`
  */
-function render$1(vnode, parentDom, replaceNode) {
-	if (parentDom == document) parentDom = document.documentElement;
+function render$1(vnode, parentDom) {
 	if (options$1._root) options$1._root(vnode, parentDom);
-	let isHydrating = typeof replaceNode == "function";
-	let oldVNode = isHydrating ? null : (replaceNode && replaceNode._children) || parentDom._children;
-	vnode = ((!isHydrating && replaceNode) || parentDom)._children = createElement(Fragment, null, [vnode]);
+	if (parentDom.nodeType == 9) parentDom = parentDom.documentElement;
+	let isHydrating = vnode && vnode._flags & 32;
+	let oldVNode = isHydrating ? null : parentDom._children;
+	parentDom._children = createVNode$1(Fragment, { children: [vnode] });
 	let commitQueue = [],
 		refQueue = [];
 	diff(
 		parentDom,
-		vnode,
+		parentDom._children,
 		oldVNode || EMPTY_OBJ,
 		EMPTY_OBJ,
 		parentDom.namespaceURI,
-		!isHydrating && replaceNode
-			? [replaceNode]
-			: oldVNode
-				? null
-				: parentDom.firstChild
-					? slice.call(parentDom.childNodes)
-					: null,
+		oldVNode ? null : parentDom.firstChild ? slice.call(parentDom.childNodes) : null,
 		commitQueue,
-		!isHydrating && replaceNode ? replaceNode : oldVNode ? oldVNode._dom : parentDom.firstChild,
+		oldVNode ? oldVNode._dom : parentDom.firstChild,
 		isHydrating,
 		refQueue,
 	);
-	commitRoot(commitQueue, vnode, refQueue);
-	vnode.props.children = null;
+	commitRoot(commitQueue, parentDom._children, refQueue);
+	parentDom._children.props.children = null;
 }
 /**
  * Update an existing DOM element with data from a Preact virtual node
@@ -1111,36 +1222,11 @@ function render$1(vnode, parentDom, replaceNode) {
  * @param {import('./internal').PreactElement} parentDom The DOM element to update
  */
 function hydrate$1(vnode, parentDom) {
-	render$1(vnode, parentDom, hydrate$1);
+	if (vnode && typeof vnode == "object") vnode._flags |= 32;
+	render$1(vnode, parentDom);
 }
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/src/clone-element.js
-/**
- * Clones the given VNode, optionally adding attributes/props and replacing its
- * children.
- * @param {import('./internal').VNode} vnode The virtual DOM element to clone
- * @param {object} props Attributes/props to add when cloning
- * @param {Array<import('./internal').ComponentChildren>} rest Any additional arguments will be used
- * as replacement children.
- * @returns {import('./internal').VNode}
- */
-function cloneElement$1(vnode, props, children) {
-	let normalizedProps = assign$1({}, vnode.props),
-		key,
-		ref,
-		i;
-	let defaultProps;
-	if (vnode.type && vnode.type.defaultProps) defaultProps = vnode.type.defaultProps;
-	for (i in props)
-		if (i == "key") key = props[i];
-		else if (i == "ref") ref = props[i];
-		else if (props[i] === void 0 && defaultProps != void 0) normalizedProps[i] = defaultProps[i];
-		else normalizedProps[i] = props[i];
-	if (arguments.length > 2) normalizedProps.children = arguments.length > 3 ? slice.call(arguments, 2) : children;
-	return createVNode$1(vnode.type, normalizedProps, key || vnode.key, ref || vnode.ref, null);
-}
-//#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/src/create-context.js
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/src/create-context.js
 var i$1 = 0;
 function createContext(defaultValue) {
 	function Context(props) {
@@ -1150,13 +1236,10 @@ function createContext(defaultValue) {
 			let ctx = {};
 			ctx[Context._id] = this;
 			this.getChildContext = () => ctx;
-			this.componentWillUnmount = () => {
-				subs = null;
-			};
 			this.shouldComponentUpdate = function (_props) {
 				if (this.props.value != _props.value)
 					subs.forEach((c) => {
-						c._force = true;
+						c._bits |= 4;
 						enqueueRender(c);
 					});
 			};
@@ -1164,7 +1247,7 @@ function createContext(defaultValue) {
 				subs.add(c);
 				let old = c.componentWillUnmount;
 				c.componentWillUnmount = () => {
-					if (subs) subs.delete(c);
+					subs.delete(c);
 					if (old) old.call(c);
 				};
 			};
@@ -1177,11 +1260,34 @@ function createContext(defaultValue) {
 	Context.Consumer = (props, contextValue) => {
 		return props.children(contextValue);
 	};
-	Context.Provider = Context._contextRef = Context.Consumer.contextType = Context;
+	Context.Provider = Context.Consumer.contextType = Context;
 	return Context;
 }
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/hooks/src/index.js
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/src/create-portal.js
+/**
+ * Portal component. A unique type is used instead of Fragment so that a
+ * portal returned directly from a component isn't collapsed into the
+ * component's children array by the Fragment unwrapping in `diff()`.
+ * @param {object} props
+ */
+function Portal(props) {
+	return props.children;
+}
+/**
+ * Create a `Portal` to continue rendering the vnode tree at a different DOM node
+ * @param {import('./internal').ComponentChildren} vnode The vnode to render
+ * @param {import('./internal').PreactElement} container The DOM node to continue rendering in to
+ */
+function createPortal$1(vnode, container) {
+	return createVNode$1(Portal, {
+		_parentDom: container,
+		children: vnode,
+	});
+}
+//#endregion
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/hooks/src/index.js
+var ObjectIs = Object.is;
 /** @type {number} */
 var currentIndex;
 /** @type {import('./internal').Component} */
@@ -1192,9 +1298,17 @@ var previousComponent;
 var currentHook = 0;
 /** @type {Array<import('./internal').Component>} */
 var afterPaintEffects = [];
+/**
+ * Passive (useEffect) hook states of unmounted components whose cleanup is
+ * still pending. Deferred to the after-paint flush to match React, which runs
+ * passive destroys after the commit has painted. Each state's `_passive` holds
+ * the surviving component its errors should be routed to.
+ * @type {Array<import('./internal').EffectHookState>}
+ */
+var unmountCleanups = [];
 var options = options$1;
 var oldBeforeDiff = options._diff;
-var oldBeforeRender$1 = options._render;
+var oldBeforeRender = options._render;
 var oldAfterDiff = options.diffed;
 var oldCommit = options._commit;
 var oldBeforeUnmount = options.unmount;
@@ -1212,24 +1326,23 @@ options._root = (vnode, parentDom) => {
 };
 /** @type {(vnode: import('./internal').VNode) => void} */
 options._render = (vnode) => {
-	if (oldBeforeRender$1) oldBeforeRender$1(vnode);
+	if (oldBeforeRender) oldBeforeRender(vnode);
 	currentComponent$1 = vnode._component;
 	currentIndex = 0;
 	const hooks = currentComponent$1.__hooks;
-	if (hooks)
-		if (previousComponent === currentComponent$1) {
-			hooks._pendingEffects = [];
-			currentComponent$1._renderCallbacks = [];
-			hooks._list.some((hookItem) => {
-				if (hookItem._nextValue) hookItem._value = hookItem._nextValue;
-				hookItem._pendingArgs = hookItem._nextValue = void 0;
-			});
-		} else {
+	if (hooks) {
+		if (previousComponent == currentComponent$1) currentComponent$1._renderCallbacks = [];
+		else {
 			hooks._pendingEffects.some(invokeCleanup);
 			hooks._pendingEffects.some(invokeEffect);
-			hooks._pendingEffects = [];
 			currentIndex = 0;
 		}
+		hooks._pendingEffects = [];
+		hooks._list.some((hookItem) => {
+			if (hookItem._nextValue) hookItem._value = hookItem._nextValue;
+			hookItem._pendingArgs = hookItem._nextValue = void 0;
+		});
+	}
 	previousComponent = currentComponent$1;
 };
 /** @type {(vnode: import('./internal').VNode) => void} */
@@ -1239,10 +1352,7 @@ options.diffed = (vnode) => {
 	if (c && c.__hooks) {
 		if (c.__hooks._pendingEffects.length) afterPaint(afterPaintEffects.push(c));
 		c.__hooks._list.some((hookItem) => {
-			if (hookItem._pendingArgs) {
-				hookItem._args = hookItem._pendingArgs;
-				hookItem._pendingArgs = void 0;
-			}
+			if (hookItem._pendingArgs) hookItem._args = hookItem._pendingArgs;
 		});
 	}
 	previousComponent = currentComponent$1 = null;
@@ -1268,10 +1378,19 @@ options.unmount = (vnode) => {
 	if (oldBeforeUnmount) oldBeforeUnmount(vnode);
 	const c = vnode._component;
 	if (c && c.__hooks) {
-		let hasErrored;
+		let hasErrored, errorParent;
 		c.__hooks._list.some((s) => {
 			try {
-				invokeCleanup(s);
+				if (s._passive && s._cleanup) {
+					if (errorParent === void 0) {
+						errorParent = vnode._parent;
+						while (errorParent && !(errorParent._component && errorParent._component._parentDom))
+							errorParent = errorParent._parent;
+						errorParent = errorParent && errorParent._component;
+					}
+					s._passive = errorParent;
+					afterPaint(unmountCleanups.push(s));
+				} else invokeCleanup(s);
 			} catch (e) {
 				hasErrored = e;
 			}
@@ -1283,7 +1402,7 @@ options.unmount = (vnode) => {
 /**
  * Get a hook's state from the currentComponent
  * @param {number} index The index of the hook to get
- * @param {number} type The index of the hook to get
+ * @param {number} type The type of the hook to get
  * @returns {any}
  */
 function getHookState(index, type) {
@@ -1325,7 +1444,7 @@ function useReducer(reducer, initialState, init) {
 			(action) => {
 				const currentValue = hookState._nextValue ? hookState._nextValue[0] : hookState._value[0];
 				const nextValue = hookState._reducer(currentValue, action);
-				if (currentValue !== nextValue) {
+				if (!ObjectIs(currentValue, nextValue)) {
 					hookState._nextValue = [nextValue, hookState._value[1]];
 					hookState._component.setState({});
 				}
@@ -1334,32 +1453,16 @@ function useReducer(reducer, initialState, init) {
 		hookState._component = currentComponent$1;
 		if (!currentComponent$1._hasScuFromHooks) {
 			currentComponent$1._hasScuFromHooks = true;
-			let prevScu = currentComponent$1.shouldComponentUpdate;
-			const prevCWU = currentComponent$1.componentWillUpdate;
-			currentComponent$1.componentWillUpdate = function (p, s, c) {
-				if (this._force) {
-					let tmp = prevScu;
-					prevScu = void 0;
-					updateHookState(p, s, c);
-					prevScu = tmp;
-				}
-				if (prevCWU) prevCWU.call(this, p, s, c);
-			};
-			/**
-			 *
-			 * @type {import('./internal').Component["shouldComponentUpdate"]}
-			 */
-			function updateHookState(p, s, c) {
-				if (!hookState._component.__hooks) return true;
+			const prevScu = currentComponent$1.shouldComponentUpdate;
+			currentComponent$1.shouldComponentUpdate = function (p, s, c) {
+				const hooks = this.__hooks;
+				if (!hooks) return true;
 				let updatedHook = false;
-				let shouldUpdate = hookState._component.props !== p;
-				hookState._component.__hooks._list.some((hookItem) => {
+				let shouldUpdate = this.props != p;
+				hooks._list.some((hookItem) => {
 					if (hookItem._nextValue) {
 						updatedHook = true;
-						const currentValue = hookItem._value[0];
-						hookItem._value = hookItem._nextValue;
-						hookItem._nextValue = void 0;
-						if (currentValue !== hookItem._value[0]) shouldUpdate = true;
+						if (!ObjectIs(hookItem._value[0], hookItem._nextValue[0])) shouldUpdate = true;
 					}
 				});
 				if (prevScu) {
@@ -1367,11 +1470,10 @@ function useReducer(reducer, initialState, init) {
 					return updatedHook ? result || shouldUpdate : result;
 				}
 				return !updatedHook || shouldUpdate;
-			}
-			currentComponent$1.shouldComponentUpdate = updateHookState;
+			};
 		}
 	}
-	return hookState._nextValue || hookState._value;
+	return hookState._value;
 }
 /**
  * @param {import('./internal').Effect} callback
@@ -1382,6 +1484,7 @@ function useEffect(callback, args) {
 	/** @type {import('./internal').EffectHookState} */
 	const state = getHookState(currentIndex++, 3);
 	if (!options._skipEffects && argsChanged(state._args, args)) {
+		state._passive = true;
 		state._value = callback;
 		state._pendingArgs = args;
 		currentComponent$1.__hooks._pendingEffects.push(state);
@@ -1396,6 +1499,7 @@ function useLayoutEffect(callback, args) {
 	/** @type {import('./internal').EffectHookState} */
 	const state = getHookState(currentIndex++, 4);
 	if (!options._skipEffects && argsChanged(state._args, args)) {
+		state._passive = false;
 		state._value = callback;
 		state._pendingArgs = args;
 		currentComponent$1._renderCallbacks.push(state);
@@ -1442,7 +1546,6 @@ function useMemo(factory, args) {
 	if (argsChanged(state._args, args)) {
 		state._value = factory();
 		state._args = args;
-		state._factory = factory;
 	}
 	return state._value;
 }
@@ -1484,7 +1587,7 @@ function useId() {
 	if (!state._value) {
 		/** @type {import('./internal').VNode} */
 		let root = currentComponent$1._vnode;
-		while (root !== null && !root._mask && root._parent !== null) root = root._parent;
+		while (!root._mask && root._parent) root = root._parent;
 		let mask = root._mask || (root._mask = [0, 0]);
 		state._value = "P" + mask[0] + "-" + mask[1]++;
 	}
@@ -1495,18 +1598,27 @@ function useId() {
  */
 function flushAfterPaintEffects() {
 	let component;
-	while ((component = afterPaintEffects.shift())) {
-		const hooks = component.__hooks;
-		if (!component._parentDom || !hooks) continue;
-		try {
-			hooks._pendingEffects.some(invokeCleanup);
-			hooks._pendingEffects.some(invokeEffect);
-			hooks._pendingEffects = [];
-		} catch (e) {
-			hooks._pendingEffects = [];
-			options._catchError(e, component._vnode);
+	do {
+		while ((component = unmountCleanups.shift()))
+			try {
+				invokeCleanup(component);
+			} catch (e) {
+				component = component._passive;
+				options._catchError(e, { _parent: component && component._vnode });
+			}
+		while ((component = afterPaintEffects.shift())) {
+			const hooks = component.__hooks;
+			if (!component._parentDom || !hooks) continue;
+			try {
+				hooks._pendingEffects.some(invokeCleanup);
+				hooks._pendingEffects.some(invokeEffect);
+				hooks._pendingEffects = [];
+			} catch (e) {
+				hooks._pendingEffects = [];
+				options._catchError(e, component._vnode);
+			}
 		}
-	}
+	} while (unmountCleanups.length);
 }
 var HAS_RAF = typeof requestAnimationFrame == "function";
 /**
@@ -1535,7 +1647,7 @@ function afterNextFrame(callback) {
  * @returns {void}
  */
 function afterPaint(newQueueLength) {
-	if (newQueueLength === 1 || prevRaf !== options.requestAnimationFrame) {
+	if (newQueueLength == 1 || prevRaf != options.requestAnimationFrame) {
 		prevRaf = options.requestAnimationFrame;
 		(prevRaf || afterNextFrame)(flushAfterPaintEffects);
 	}
@@ -1569,7 +1681,7 @@ function invokeEffect(hook) {
  * @returns {boolean}
  */
 function argsChanged(oldArgs, newArgs) {
-	return !oldArgs || oldArgs.length !== newArgs.length || newArgs.some((arg, index) => arg !== oldArgs[index]);
+	return !oldArgs || oldArgs.length != newArgs.length || newArgs.some((arg, index) => !ObjectIs(arg, oldArgs[index]));
 }
 /**
  * @template Arg
@@ -1581,18 +1693,27 @@ function invokeOrReturn(arg, f) {
 	return typeof f == "function" ? f(arg) : f;
 }
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/compat/src/util.js
-/**
- * Assign properties from `props` to `obj`
- * @template O, P The obj and props types
- * @param {O} obj The object to copy properties to
- * @param {P} props The object to copy properties from
- * @returns {O & P}
- */
-function assign(obj, props) {
-	for (let i in props) obj[i] = props[i];
-	return obj;
-}
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/compat/src/Children.js
+var mapFn = (children, fn, context) => {
+	if (children == null) return null;
+	return toChildArray(toChildArray(children).map(fn.bind(context)));
+};
+var Children = {
+	map: mapFn,
+	forEach: mapFn,
+	count(children) {
+		return children ? toChildArray(children).length : 0;
+	},
+	only(children) {
+		const normalized = toChildArray(children);
+		if (normalized.length != 1) throw "Children.only";
+		return normalized[0];
+	},
+	toArray: toChildArray,
+};
+//#endregion
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/compat/src/util.js
+var assign = Object.assign;
 /**
  * Check if two objects have a different shape
  * @param {object} a
@@ -1600,123 +1721,38 @@ function assign(obj, props) {
  * @returns {boolean}
  */
 function shallowDiffers(a, b) {
-	for (let i in a) if (i !== "__source" && !(i in b)) return true;
-	for (let i in b) if (i !== "__source" && a[i] !== b[i]) return true;
+	for (let i in a) if (i != "__source" && a[i] !== b[i]) return true;
+	for (let i in b) if (i != "__source" && !(i in a)) return true;
 	return false;
 }
-/**
- * Check if two values are the same value
- * @param {*} x
- * @param {*} y
- * @returns {boolean}
- */
-function is(x, y) {
-	return (x === y && (x !== 0 || 1 / x === 1 / y)) || (x !== x && y !== y);
-}
+var IS_NON_DIMENSIONAL =
+	/^(-|f[lo].*[^se]$|g.{5,}[^ps]$|z|o[pr]|(W.{5})?[lL]i.*(t|mp)$|an|(bo|s).{4}Im|sca|m.{6}[ds]|ta|c.*[st]$|wido|ini)/;
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/compat/src/hooks.js
-/**
- * This is taken from https://github.com/facebook/react/blob/main/packages/use-sync-external-store/src/useSyncExternalStoreShimClient.js#L84
- * on a high level this cuts out the warnings, ... and attempts a smaller implementation
- * @typedef {{ _value: any; _getSnapshot: () => any }} Store
- */
-function useSyncExternalStore(subscribe, getSnapshot) {
-	const value = getSnapshot();
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/compat/src/PureComponent.js
+function createPureComponent() {
 	/**
-	 * @typedef {{ _instance: Store }} StoreRef
-	 * @type {[StoreRef, (store: StoreRef) => void]}
+	 * Component class with a predefined `shouldComponentUpdate` implementation
 	 */
-	const [{ _instance }, forceUpdate] = useState({
-		_instance: {
-			_value: value,
-			_getSnapshot: getSnapshot,
-		},
-	});
-	useLayoutEffect(() => {
-		_instance._value = value;
-		_instance._getSnapshot = getSnapshot;
-		if (didSnapshotChange(_instance)) forceUpdate({ _instance });
-	}, [subscribe, value, getSnapshot]);
-	useEffect(() => {
-		if (didSnapshotChange(_instance)) forceUpdate({ _instance });
-		return subscribe(() => {
-			if (didSnapshotChange(_instance)) forceUpdate({ _instance });
-		});
-	}, [subscribe]);
-	return value;
-}
-/** @type {(inst: Store) => boolean} */
-function didSnapshotChange(inst) {
-	try {
-		return !is(inst._value, inst._getSnapshot());
-	} catch (error) {
-		return true;
+	function PureComponent(p, c) {
+		this.props = p;
+		this.context = c;
 	}
+	PureComponent.prototype = new BaseComponent();
+	PureComponent.prototype.isPureReactComponent = true;
+	PureComponent.prototype.shouldComponentUpdate = function (props, state) {
+		return shallowDiffers(this.props, props) || shallowDiffers(this.state, state);
+	};
+	return PureComponent;
 }
-function startTransition(cb) {
-	cb();
-}
-function useDeferredValue(val) {
-	return val;
-}
-function useTransition() {
-	return [false, startTransition];
-}
-var useInsertionEffect = useLayoutEffect;
+var PureComponent = /* @__PURE__ */ createPureComponent();
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/compat/src/PureComponent.js
-/**
- * Component class with a predefined `shouldComponentUpdate` implementation
- */
-function PureComponent(p, c) {
-	this.props = p;
-	this.context = c;
-}
-PureComponent.prototype = new BaseComponent();
-PureComponent.prototype.isPureReactComponent = true;
-PureComponent.prototype.shouldComponentUpdate = function (props, state) {
-	return shallowDiffers(this.props, props) || shallowDiffers(this.state, state);
-};
-//#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/compat/src/memo.js
-/**
- * Memoize a component, so that it only updates when the props actually have
- * changed. This was previously known as `React.pure`.
- * @param {import('./internal').FunctionComponent} c functional component
- * @param {(prev: object, next: object) => boolean} [comparer] Custom equality function
- * @returns {import('./internal').FunctionComponent}
- */
-function memo(c, comparer) {
-	function shouldUpdate(nextProps) {
-		let ref = this.props.ref;
-		if (ref != nextProps.ref && ref) typeof ref == "function" ? ref(null) : (ref.current = null);
-		return comparer ? !comparer(this.props, nextProps) || ref != nextProps.ref : shallowDiffers(this.props, nextProps);
-	}
-	function Memoed(props) {
-		this.shouldComponentUpdate = shouldUpdate;
-		return createElement(c, props);
-	}
-	Memoed.displayName = "Memo(" + (c.displayName || c.name) + ")";
-	Memoed._forwarded = Memoed.prototype.isReactComponent = true;
-	Memoed.type = c;
-	return Memoed;
-}
-//#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/compat/src/forwardRef.js
-var oldDiffHook = options$1._diff;
-options$1._diff = (vnode) => {
-	if (vnode.type && vnode.type._forwarded && vnode.ref) {
-		vnode.props.ref = vnode.ref;
-		vnode.ref = null;
-	}
-	if (oldDiffHook) oldDiffHook(vnode);
-};
-var REACT_FORWARD_SYMBOL = (typeof Symbol != "undefined" && Symbol.for && Symbol.for("react.forward_ref")) || 3911;
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/compat/src/forwardRef.js
+var REACT_FORWARD_SYMBOL = Symbol.for("react.forward_ref");
 /**
  * Pass ref down to a child. This is mainly used in libraries with HOCs that
  * wrap components. Using `forwardRef` there is an easy way to get a reference
  * of the wrapped component instead of one of the wrapper itself.
- * @param {import('./index').ForwardFn} fn
+ * @param {import('./index').ForwardRefRenderFunction} fn
  * @returns {import('./internal').FunctionComponent}
  */
 function forwardRef(fn) {
@@ -1727,342 +1763,122 @@ function forwardRef(fn) {
 	}
 	Forwarded.$$typeof = REACT_FORWARD_SYMBOL;
 	Forwarded.render = fn;
-	Forwarded.prototype.isReactComponent = Forwarded._forwarded = true;
+	Forwarded.prototype.isReactComponent = true;
 	Forwarded.displayName = "ForwardRef(" + (fn.displayName || fn.name) + ")";
 	return Forwarded;
 }
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/compat/src/Children.js
-var mapFn = (children, fn) => {
-	if (children == null) return null;
-	return toChildArray(toChildArray(children).map(fn));
-};
-var Children = {
-	map: mapFn,
-	forEach: mapFn,
-	count(children) {
-		return children ? toChildArray(children).length : 0;
-	},
-	only(children) {
-		const normalized = toChildArray(children);
-		if (normalized.length !== 1) throw "Children.only";
-		return normalized[0];
-	},
-	toArray: toChildArray,
-};
-//#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/compat/src/suspense.js
-var oldCatchError = options$1._catchError;
-options$1._catchError = function (error, newVNode, oldVNode, errorInfo) {
-	if (error.then) {
-		/** @type {import('./internal').Component} */
-		let component;
-		let vnode = newVNode;
-		for (; (vnode = vnode._parent); )
-			if ((component = vnode._component) && component._childDidSuspend) {
-				if (newVNode._dom == null) {
-					newVNode._dom = oldVNode._dom;
-					newVNode._children = oldVNode._children || [];
-				}
-				return component._childDidSuspend(error, newVNode);
-			}
-	}
-	oldCatchError(error, newVNode, oldVNode, errorInfo);
-};
-var oldUnmount = options$1.unmount;
-options$1.unmount = function (vnode) {
-	/** @type {import('./internal').Component} */
-	const component = vnode._component;
-	if (component) component._unmounted = true;
-	if (component && component._onResolve) component._onResolve();
-	if (component && vnode._flags & 32) vnode.type = null;
-	if (oldUnmount) oldUnmount(vnode);
-};
-function detachedClone(vnode, detachedParent, parentDom) {
-	if (vnode) {
-		if (vnode._component && vnode._component.__hooks) {
-			vnode._component.__hooks._list.forEach((effect) => {
-				if (typeof effect._cleanup == "function") effect._cleanup();
-			});
-			vnode._component.__hooks = null;
-		}
-		vnode = assign({}, vnode);
-		if (vnode._component != null) {
-			if (vnode._component._parentDom === parentDom) vnode._component._parentDom = detachedParent;
-			vnode._component._force = true;
-			vnode._component = null;
-		}
-		vnode._children =
-			vnode._children && vnode._children.map((child) => detachedClone(child, detachedParent, parentDom));
-	}
-	return vnode;
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/compat/src/hooks.js
+function startTransition(cb) {
+	cb();
 }
-function removeOriginal(vnode, detachedParent, originalParent) {
-	if (vnode && originalParent) {
-		vnode._original = null;
-		vnode._children =
-			vnode._children && vnode._children.map((child) => removeOriginal(child, detachedParent, originalParent));
-		if (vnode._component) {
-			if (vnode._component._parentDom === detachedParent) {
-				if (vnode._dom) originalParent.appendChild(vnode._dom);
-				vnode._component._force = true;
-				vnode._component._parentDom = originalParent;
-			}
-		}
-	}
-	return vnode;
+function useDeferredValue(val) {
+	return val;
 }
-function Suspense() {
-	this._pendingSuspensionCount = 0;
-	this._suspenders = null;
-	this._detachOnNextRender = null;
+function useTransition() {
+	return [false, startTransition];
 }
-Suspense.prototype = new BaseComponent();
+var useInsertionEffect = useLayoutEffect;
 /**
- * @this {import('./internal').SuspenseComponent}
- * @param {Promise} promise The thrown promise
- * @param {import('./internal').VNode<any, any>} suspendingVNode The suspending component
+ * @template {Function} T
+ * @param {T} callback
+ * @returns {T}
  */
-Suspense.prototype._childDidSuspend = function (promise, suspendingVNode) {
-	const suspendingComponent = suspendingVNode._component;
-	/** @type {import('./internal').SuspenseComponent} */
-	const c = this;
-	if (c._suspenders == null) c._suspenders = [];
-	c._suspenders.push(suspendingComponent);
-	const resolve = suspended(c._vnode);
-	let resolved = false;
-	const onResolved = () => {
-		if (resolved || c._unmounted) return;
-		resolved = true;
-		suspendingComponent._onResolve = null;
-		if (resolve) resolve(onSuspensionComplete);
-		else onSuspensionComplete();
+function useEffectEvent(callback) {
+	const ref = useRef(callback);
+	ref.current = callback;
+	return function () {
+		return ref.current.apply(void 0, arguments);
 	};
-	suspendingComponent._onResolve = onResolved;
-	const originalParentDom = suspendingComponent._parentDom;
-	suspendingComponent._parentDom = null;
-	const onSuspensionComplete = () => {
-		if (!--c._pendingSuspensionCount) {
-			if (c.state._suspended) {
-				const suspendedVNode = c.state._suspended;
-				c._vnode._children[0] = removeOriginal(
-					suspendedVNode,
-					suspendedVNode._component._parentDom,
-					suspendedVNode._component._originalParentDom,
-				);
-			}
-			c.setState({ _suspended: (c._detachOnNextRender = null) });
-			let suspended;
-			while ((suspended = c._suspenders.pop())) {
-				suspended._parentDom = originalParentDom;
-				suspended.forceUpdate();
-			}
-		}
-	};
-	/**
-	 * We do not set `suspended: true` during hydration because we want the actual markup
-	 * to remain on screen and hydrate it when the suspense actually gets resolved.
-	 * While in non-hydration cases the usual fallback -> component flow would occour.
-	 */
-	if (!c._pendingSuspensionCount++ && !(suspendingVNode._flags & 32))
-		c.setState({ _suspended: (c._detachOnNextRender = c._vnode._children[0]) });
-	promise.then(onResolved, onResolved);
-};
-Suspense.prototype.componentWillUnmount = function () {
-	this._suspenders = [];
-};
-/**
- * @this {import('./internal').SuspenseComponent}
- * @param {import('./internal').SuspenseComponent["props"]} props
- * @param {import('./internal').SuspenseState} state
- */
-Suspense.prototype.render = function (props, state) {
-	if (this._detachOnNextRender) {
-		if (this._vnode._children) {
-			const detachedParent = document.createElement("div");
-			const detachedComponent = this._vnode._children[0]._component;
-			this._vnode._children[0] = detachedClone(
-				this._detachOnNextRender,
-				detachedParent,
-				(detachedComponent._originalParentDom = detachedComponent._parentDom),
-			);
-		}
-		this._detachOnNextRender = null;
-	}
-	/** @type {import('./internal').VNode} */
-	const fallback = state._suspended && createElement(Fragment, null, props.fallback);
-	if (fallback) fallback._flags &= -33;
-	return [createElement(Fragment, null, state._suspended ? null : props.children), fallback];
-};
-/**
- * Checks and calls the parent component's _suspended method, passing in the
- * suspended vnode. This is a way for a parent (e.g. SuspenseList) to get notified
- * that one of its children/descendants suspended.
- *
- * The parent MAY return a callback. The callback will get called when the
- * suspension resolves, notifying the parent of the fact.
- * Moreover, the callback gets function `unsuspend` as a parameter. The resolved
- * child descendant will not actually get unsuspended until `unsuspend` gets called.
- * This is a way for the parent to delay unsuspending.
- *
- * If the parent does not return a callback then the resolved vnode
- * gets unsuspended immediately when it resolves.
- *
- * @param {import('./internal').VNode} vnode
- * @returns {((unsuspend: () => void) => void)?}
- */
-function suspended(vnode) {
-	let component = vnode._parent && vnode._parent._component;
-	return component && component._suspended && component._suspended(vnode);
-}
-function lazy(loader) {
-	let prom;
-	let component = null;
-	let error;
-	let resolved;
-	function Lazy(props) {
-		if (!prom) {
-			prom = loader();
-			prom.then(
-				(exports) => {
-					if (exports) component = exports.default || exports;
-					resolved = true;
-				},
-				(e) => {
-					error = e;
-					resolved = true;
-				},
-			);
-		}
-		if (error) throw error;
-		if (!resolved) throw prom;
-		return component ? createElement(component, props) : null;
-	}
-	Lazy.displayName = "Lazy";
-	Lazy._forwarded = true;
-	return Lazy;
 }
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/compat/src/suspense-list.js
-var SUSPENDED_COUNT = 0;
-var RESOLVED_COUNT = 1;
-var NEXT_NODE = 2;
-function SuspenseList() {
-	this._next = null;
-	this._map = null;
-}
-var resolve = (list, child, node) => {
-	if (++node[RESOLVED_COUNT] === node[SUSPENDED_COUNT]) list._map.delete(child);
-	if (!list.props.revealOrder || (list.props.revealOrder[0] === "t" && list._map.size)) return;
-	node = list._next;
-	while (node) {
-		while (node.length > 3) node.pop()();
-		if (node[RESOLVED_COUNT] < node[SUSPENDED_COUNT]) break;
-		list._next = node = node[NEXT_NODE];
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/compat/src/memo.js
+/**
+ * Memoize a component, so that it only updates when the props actually have
+ * changed. This was previously known as `React.pure`.
+ * @param {import('./internal').FunctionComponent} c functional component
+ * @param {(prev: object, next: object) => boolean} [comparer] Custom equality function
+ * @returns {import('./internal').FunctionComponent}
+ */
+function memo(c, comparer) {
+	function shouldUpdate(nextProps) {
+		const ref = this.props.ref;
+		if (ref != nextProps.ref && ref) typeof ref == "function" ? ref(null) : (ref.current = null);
+		return comparer ? !comparer(this.props, nextProps) || ref != nextProps.ref : shallowDiffers(this.props, nextProps);
 	}
-};
-SuspenseList.prototype = new BaseComponent();
-SuspenseList.prototype._suspended = function (child) {
-	const list = this;
-	const delegated = suspended(list._vnode);
-	let node = list._map.get(child);
-	node[SUSPENDED_COUNT]++;
-	return (unsuspend) => {
-		const wrappedUnsuspend = () => {
-			if (!list.props.revealOrder) unsuspend();
-			else {
-				node.push(unsuspend);
-				resolve(list, child, node);
-			}
-		};
-		if (delegated) delegated(wrappedUnsuspend);
-		else wrappedUnsuspend();
-	};
-};
-SuspenseList.prototype.render = function (props) {
-	this._next = null;
-	this._map = /* @__PURE__ */ new Map();
-	const children = toChildArray(props.children);
-	if (props.revealOrder && props.revealOrder[0] === "b") children.reverse();
-	for (let i = children.length; i--; ) this._map.set(children[i], (this._next = [1, 0, this._next]));
-	return props.children;
-};
-SuspenseList.prototype.componentDidUpdate = SuspenseList.prototype.componentDidMount = function () {
-	this._map.forEach((node, child) => {
-		resolve(this, child, node);
-	});
-};
+	function Memoed(props) {
+		this.shouldComponentUpdate = shouldUpdate;
+		return createElement(c, props);
+	}
+	Memoed.displayName = "Memo(" + (c.displayName || c.name) + ")";
+	Memoed.prototype.isReactComponent = true;
+	Memoed.type = c;
+	return Memoed;
+}
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/compat/src/portals.js
-/**
- * @param {import('../../src/index').RenderableProps<{ context: any }>} props
- */
-function ContextProvider(props) {
-	this.getChildContext = () => props.context;
-	return props.children;
-}
-/**
- * Portal component
- * @this {import('./internal').Component}
- * @param {object | null | undefined} props
- *
- * TODO: use createRoot() instead of fake root
- */
-function Portal(props) {
-	const _this = this;
-	let container = props._container;
-	_this.componentWillUnmount = function () {
-		render$1(null, _this._temp);
-		_this._temp = null;
-		_this._container = null;
-	};
-	if (_this._container && _this._container !== container) _this.componentWillUnmount();
-	if (!_this._temp) {
-		let root = _this._vnode;
-		while (root !== null && !root._mask && root._parent !== null) root = root._parent;
-		_this._container = container;
-		_this._temp = {
-			nodeType: 1,
-			parentNode: container,
-			childNodes: [],
-			_children: { _mask: root._mask },
-			contains: () => true,
-			namespaceURI: container.namespaceURI,
-			insertBefore(child, before) {
-				this.childNodes.push(child);
-				_this._container.insertBefore(child, before);
-			},
-			removeChild(child) {
-				this.childNodes.splice(this.childNodes.indexOf(child) >>> 1, 1);
-				_this._container.removeChild(child);
-			},
-		};
-	}
-	render$1(createElement(ContextProvider, { context: _this.context }, props._vnode), _this._temp);
-}
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/compat/src/portals.js
 /**
  * Create a `Portal` to continue rendering the vnode tree at a different DOM node
  * @param {import('./internal').VNode} vnode The vnode to render
  * @param {import('./internal').PreactElement} container The DOM node to continue rendering in to.
  */
 function createPortal(vnode, container) {
-	const el = createElement(Portal, {
-		_vnode: vnode,
-		_container: container,
-	});
+	const el = createPortal$1(vnode, container);
 	el.containerInfo = container;
 	return el;
 }
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/compat/src/render.js
-var REACT_ELEMENT_TYPE = (typeof Symbol != "undefined" && Symbol.for && Symbol.for("react.element")) || 60103;
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/compat/src/render.js
+var REACT_ELEMENT_TYPE = Symbol.for("react.element");
+var MODE_HYDRATE = 32;
+var currentComponent;
+var hydrationRoot;
+var renderTrackingInitialized;
 var CAMEL_PROPS =
-	/^(?:accent|alignment|arabic|baseline|cap|clip(?!PathU)|color|dominant|fill|flood|font|glyph(?!R)|horiz|image(!S)|letter|lighting|marker(?!H|W|U)|overline|paint|pointer|shape|stop|strikethrough|stroke|text(?!L)|transform|underline|unicode|units|v|vector|vert|word|writing|x(?!C))[A-Z]/;
-var ON_ANI = /^on(Ani|Tra|Tou|BeforeInp|Compo)/;
+	/^(?:accent|alignment|arabic|baseline|cap|clip(?!PathU)|color|dominant|fill|flood|font|glyph(?!R)|horiz|image(?!S)|letter|lighting|marker(?!H|W|U)|overline|paint|pointer|shape|stop|strikethrough|stroke|text(?!L)|transform|underline|unicode|units|v|vector|vert|word|writing|x(?!C))[A-Z]/;
 var CAMEL_REPLACE = /[A-Z0-9]/g;
-var IS_DOM = typeof document !== "undefined";
-var onChangeInputType = (type) =>
-	(typeof Symbol != "undefined" && typeof Symbol() == "symbol" ? /fil|che|rad/ : /fil|che|ra/).test(type);
+var IS_DOM = typeof document < "u";
+/**
+ * This is taken from https://github.com/facebook/react/blob/main/packages/use-sync-external-store/src/useSyncExternalStoreShimClient.js#L84
+ * on a high level this cuts out the warnings, ... and attempts a smaller implementation
+ * @typedef {{ _value: any; _getSnapshot: () => any }} Store
+ */
+var useSyncExternalStore = /* @__PURE__ */ initRenderTracking(
+	function useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot) {
+		const value = options$1._skipEffects || hydrationRoot ? (getServerSnapshot || getSnapshot)() : getSnapshot();
+		/**
+		 * @typedef {{ _instance: Store }} StoreRef
+		 * @type {[StoreRef, (store: StoreRef) => void]}
+		 */
+		const [{ _instance }, forceUpdate] = useState({
+			_instance: {
+				_value: value,
+				_getSnapshot: getSnapshot,
+			},
+		});
+		useLayoutEffect(() => {
+			_instance._value = value;
+			_instance._getSnapshot = getSnapshot;
+			if (didSnapshotChange(_instance)) forceUpdate({ _instance });
+		}, [subscribe, value, getSnapshot]);
+		useEffect(() => {
+			if (didSnapshotChange(_instance)) forceUpdate({ _instance });
+			return subscribe(() => {
+				if (didSnapshotChange(_instance)) forceUpdate({ _instance });
+			});
+		}, [subscribe]);
+		return value;
+	},
+);
+/** @type {(inst: Store) => boolean} */
+function didSnapshotChange(inst) {
+	try {
+		return !Object.is(inst._value, inst._getSnapshot());
+	} catch (error) {
+		return true;
+	}
+}
+var onChangeInputType = (type) => /fil|che|rad/.test(type);
 BaseComponent.prototype.isReactComponent = true;
 ["componentWillMount", "componentWillReceiveProps", "componentWillUpdate"].forEach((key) => {
 	Object.defineProperty(BaseComponent.prototype, key, {
@@ -2123,29 +1939,35 @@ function handleDomVNode(vnode) {
 	for (let i in props) {
 		let value = props[i];
 		if (
-			(i === "value" && "defaultValue" in props && value == null) ||
-			(IS_DOM && i === "children" && type === "noscript") ||
-			i === "class" ||
-			i === "className"
+			(i == "value" && "defaultValue" in props && value == null) ||
+			(IS_DOM && i == "children" && type == "noscript") ||
+			i == "class" ||
+			i == "className"
 		)
 			continue;
-		let lowerCased = i.toLowerCase();
-		if (i === "defaultValue" && "value" in props && props.value == null) i = "value";
-		else if (i === "download" && value === true) value = "";
-		else if (lowerCased === "translate" && value === "no") value = false;
-		else if (lowerCased[0] === "o" && lowerCased[1] === "n") {
-			if (lowerCased === "ondoubleclick") i = "ondblclick";
-			else if (lowerCased === "onchange" && (type === "input" || type === "textarea") && !onChangeInputType(props.type))
+		if (i == "style" && typeof value == "object") {
+			let cloned;
+			for (let key in value)
+				if (typeof value[key] == "number" && !IS_NON_DIMENSIONAL.test(key)) {
+					if (!cloned) cloned = value = assign({}, value);
+					value[key] += "px";
+				}
+		} else if (i == "defaultValue" && "value" in props && props.value == null) i = "value";
+		else if (i == "download" && value === true) value = "";
+		else if (i == "translate" && value === "no") value = false;
+		else if (i[0] == "o" && i[1] == "n") {
+			let lowerCased = i.toLowerCase();
+			if (lowerCased == "ondoubleclick") i = "ondblclick";
+			else if (lowerCased == "onchange" && (type == "input" || type == "textarea") && !onChangeInputType(props.type))
 				lowerCased = i = "oninput";
-			else if (lowerCased === "onfocus") i = "onfocusin";
-			else if (lowerCased === "onblur") i = "onfocusout";
-			else if (ON_ANI.test(i)) i = lowerCased;
+			else if (lowerCased == "onfocus") i = "onfocusin";
+			else if (lowerCased == "onblur") i = "onfocusout";
+			if (lowerCased == "oninput") {
+				i = lowerCased;
+				if (normalizedProps[i]) i = "oninputCapture";
+			}
 		} else if (isNonDashedType && CAMEL_PROPS.test(i)) i = i.replace(CAMEL_REPLACE, "-$&").toLowerCase();
 		else if (value === null) value = void 0;
-		if (lowerCased === "oninput") {
-			i = lowerCased;
-			if (normalizedProps[i]) i = "oninputCapture";
-		}
 		normalizedProps[i] = value;
 	}
 	if (type == "select") {
@@ -2168,32 +1990,86 @@ function handleDomVNode(vnode) {
 }
 var oldVNodeHook = options$1.vnode;
 options$1.vnode = (vnode) => {
-	if (typeof vnode.type === "string") handleDomVNode(vnode);
+	if (typeof vnode.type == "string") handleDomVNode(vnode);
+	else if (typeof vnode.type == "function") {
+		const shouldApplyRef = "prototype" in vnode.type && vnode.type.prototype.render;
+		if ("ref" in vnode.props && shouldApplyRef) {
+			vnode.ref = vnode.props.ref;
+			delete vnode.props.ref;
+		}
+		if (vnode.type.defaultProps) {
+			let normalizedProps = assign({}, vnode.props);
+			for (let i in vnode.type.defaultProps)
+				if (normalizedProps[i] === void 0) normalizedProps[i] = vnode.type.defaultProps[i];
+			vnode.props = normalizedProps;
+		}
+	}
+	if (vnode.ref && !("ref" in vnode.props))
+		Object.defineProperty(vnode.props, "ref", {
+			value: vnode.ref,
+			configurable: true,
+			writable: true,
+		});
 	vnode.$$typeof = REACT_ELEMENT_TYPE;
 	if (oldVNodeHook) oldVNodeHook(vnode);
 };
-var currentComponent;
-var oldBeforeRender = options$1._render;
-options$1._render = function (vnode) {
-	if (oldBeforeRender) oldBeforeRender(vnode);
-	currentComponent = vnode._component;
-};
-var oldDiffed = options$1.diffed;
-/** @type {(vnode: import('./internal').VNode) => void} */
-options$1.diffed = function (vnode) {
-	if (oldDiffed) oldDiffed(vnode);
-	const props = vnode.props;
-	const dom = vnode._dom;
-	if (dom != null && vnode.type === "textarea" && "value" in props && props.value !== dom.value)
-		dom.value = props.value == null ? "" : props.value;
-	currentComponent = null;
-};
+function initRenderTracking(value) {
+	if (!renderTrackingInitialized) {
+		renderTrackingInitialized = true;
+		const oldBeforeRender = options$1._render;
+		options$1._render = (vnode) => {
+			if (oldBeforeRender) oldBeforeRender(vnode);
+			if (vnode._flags & MODE_HYDRATE) hydrationRoot = vnode;
+			currentComponent = vnode._component;
+		};
+		const oldDiffed = options$1.diffed;
+		options$1.diffed = (vnode) => {
+			if (oldDiffed) oldDiffed(vnode);
+			currentComponent = null;
+			if (hydrationRoot == vnode) hydrationRoot = null;
+		};
+	}
+	return value;
+}
+/**
+ * Read the value of a Promise (suspending while pending) or a Context.
+ * Unlike other hooks, `use` may be called conditionally.
+ * @template T
+ * @param {(Promise<T> & { status?: string, value?: T, reason?: any }) | import('../../src/internal').PreactContext} resource
+ * @returns {T}
+ */
+var use = /* @__PURE__ */ initRenderTracking(function use(resource) {
+	if (resource.then) {
+		if (resource.status == "fulfilled") return resource.value;
+		if (resource.status == "rejected") throw resource.reason;
+		if (!resource.status) {
+			resource.status = "pending";
+			resource.then(
+				(value) => {
+					resource.status = "fulfilled";
+					resource.value = value;
+				},
+				(reason) => {
+					resource.status = "rejected";
+					resource.reason = reason;
+				},
+			);
+		}
+		throw resource;
+	}
+	const id = resource._id;
+	const provider = currentComponent._globalContext[id];
+	if (!provider) return resource._defaultValue;
+	if (!currentComponent[id]) {
+		currentComponent[id] = true;
+		provider.sub(currentComponent);
+	}
+	return provider.props.value;
+});
 var __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = {
 	ReactCurrentDispatcher: {
 		current: {
-			readContext(context) {
-				return currentComponent._globalContext[context._id].props.value;
-			},
+			readContext: use,
 			useCallback,
 			useContext,
 			useDebugValue,
@@ -2213,8 +2089,183 @@ var __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = {
 	},
 };
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/compat/src/index.js
-var version$1 = "18.3.1";
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/compat/src/suspense.js
+function initSuspenseHooks() {
+	const oldCatchError = options$1._catchError;
+	options$1._catchError = (error, newVNode, oldVNode, errorInfo) => {
+		if (error.then) {
+			/** @type {import('./internal').Component} */
+			let component;
+			let vnode = newVNode;
+			while ((vnode = vnode._parent))
+				if ((component = vnode._component) && component._childDidSuspend) {
+					if (oldVNode && !oldVNode._component) newVNode._component.__hooks = void 0;
+					return component._childDidSuspend(error, newVNode);
+				}
+		}
+		oldCatchError(error, newVNode, oldVNode, errorInfo);
+	};
+	const oldUnmount = options$1.unmount;
+	options$1.unmount = (vnode) => {
+		/** @type {import('./internal').Component} */
+		const component = vnode._component;
+		if (component && component._onResolve) component._onResolve();
+		if (oldUnmount) oldUnmount(vnode);
+	};
+}
+function detachedClone(vnode, detachedParent, parentDom) {
+	if (vnode) {
+		const hooks = vnode._component && vnode._component.__hooks;
+		if (hooks) {
+			hooks._list.forEach((effect) => {
+				if (effect._passive != null) {
+					if (typeof effect._cleanup == "function") effect._cleanup();
+					effect._cleanup = effect._args = void 0;
+				}
+			});
+			hooks._pendingEffects = vnode._component._renderCallbacks = [];
+		}
+		if (typeof vnode.type == "string") vnode._flags |= 8;
+		vnode = assign({ constructor: void 0 }, vnode);
+		if (vnode._component != null) {
+			if (vnode._component._parentDom == parentDom) vnode._component._parentDom = detachedParent;
+			vnode._component._bits |= 4;
+			vnode._component = vnode.ref = null;
+		}
+		vnode._children =
+			vnode._children && vnode._children.map((child) => detachedClone(child, detachedParent, parentDom));
+	}
+	return vnode;
+}
+function removeOriginal(vnode, detachedParent, originalParent) {
+	if (vnode && originalParent) {
+		if (typeof vnode.type == "string") vnode._flags |= 1;
+		vnode._original = null;
+		vnode._children =
+			vnode._children && vnode._children.map((child) => removeOriginal(child, detachedParent, originalParent));
+		if (vnode._component) {
+			if (vnode._component._parentDom == detachedParent) {
+				if (vnode._dom) originalParent.appendChild(vnode._dom);
+				vnode._component._bits |= 4;
+				vnode._component._parentDom = originalParent;
+			}
+		}
+	}
+	return vnode;
+}
+function createSuspense() {
+	initSuspenseHooks();
+	function Suspense() {
+		this._pendingSuspensionCount = 0;
+		this._suspenders = null;
+		this._detachOnNextRender = null;
+	}
+	Suspense.prototype = new BaseComponent();
+	/**
+	 * @this {import('./internal').SuspenseComponent}
+	 * @param {Promise} promise The thrown promise
+	 * @param {import('./internal').VNode<any, any>} suspendingVNode The suspending component
+	 */
+	Suspense.prototype._childDidSuspend = function (promise, suspendingVNode) {
+		const suspendingComponent = suspendingVNode._component;
+		if (this._suspenders == null) this._suspenders = [];
+		this._suspenders.push(suspendingComponent);
+		let resolved = false;
+		const onResolved = () => {
+			if (resolved || !this._parentDom) return;
+			resolved = true;
+			suspendingComponent._onResolve = null;
+			onSuspensionComplete();
+		};
+		suspendingComponent._onResolve = onResolved;
+		const originalParentDom = suspendingComponent._parentDom;
+		suspendingComponent._parentDom = null;
+		const onSuspensionComplete = () => {
+			if (!--this._pendingSuspensionCount) {
+				if (this.state._suspended) {
+					const suspendedVNode = this.state._suspended;
+					this._vnode._children[0] = removeOriginal(
+						suspendedVNode,
+						suspendedVNode._component._parentDom,
+						suspendedVNode._component._originalParentDom,
+					);
+				}
+				this.setState({ _suspended: (this._detachOnNextRender = null) });
+				let suspended;
+				while ((suspended = this._suspenders.pop())) {
+					suspended._parentDom = originalParentDom;
+					suspended.forceUpdate();
+				}
+			}
+		};
+		/**
+		 * We do not set `suspended: true` during hydration because we want the actual markup
+		 * to remain on screen and hydrate it when the suspense actually gets resolved.
+		 * While in non-hydration cases the usual fallback -> component flow would occour.
+		 */
+		if (!this._pendingSuspensionCount++ && !(suspendingVNode._flags & 32))
+			this.setState({ _suspended: (this._detachOnNextRender = this._vnode._children[0]) });
+		promise.then(onResolved, onResolved);
+	};
+	Suspense.prototype.componentWillUnmount = function () {
+		this._suspenders = [];
+		if (this.state._suspended) this._vnode._children[0] = this.state._suspended;
+	};
+	/**
+	 * @this {import('./internal').SuspenseComponent}
+	 * @param {import('./internal').SuspenseComponent["props"]} props
+	 * @param {import('./internal').SuspenseState} state
+	 */
+	Suspense.prototype.render = function (props, state) {
+		if (this._detachOnNextRender) {
+			if (this._vnode._children) {
+				const detachedParent = document.createElement("div");
+				const detachedComponent = this._vnode._children[0]._component;
+				this._vnode._children[0] = detachedClone(
+					this._detachOnNextRender,
+					detachedParent,
+					(detachedComponent._originalParentDom = detachedComponent._parentDom),
+				);
+			}
+			this._detachOnNextRender = null;
+		}
+		return [
+			createElement(Fragment, null, state._suspended ? null : props.children),
+			state._suspended && createElement(Fragment, null, props.fallback),
+		];
+	};
+	return Suspense;
+}
+var Suspense = /* @__PURE__ */ createSuspense();
+function lazy(loader) {
+	let prom;
+	let component = null;
+	let error;
+	let resolved;
+	function Lazy(props) {
+		if (!prom) {
+			prom = loader();
+			prom.then(
+				(exports) => {
+					if (exports) component = exports.default || exports;
+					resolved = true;
+				},
+				(e) => {
+					error = e;
+					resolved = true;
+				},
+			);
+		}
+		if (error) throw error;
+		if (!resolved) throw prom;
+		return component ? createElement(component, props) : null;
+	}
+	Lazy.displayName = "Lazy";
+	return Lazy;
+}
+//#endregion
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/compat/src/index.js
+var version$1 = "19.0.0";
 /**
  * Legacy version of createElement.
  * @param {import('./internal').VNode["type"]} type The node name or Component constructor
@@ -2236,7 +2287,7 @@ function isValidElement(element) {
  * @returns {boolean}
  */
 function isFragment(element) {
-	return isValidElement(element) && element.type === Fragment;
+	return isValidElement(element) && element.type == Fragment;
 }
 /**
  * Check if the passed element is a Memo node.
@@ -2275,16 +2326,8 @@ function unmountComponentAtNode(container) {
  * @returns {import('./internal').PreactElement | null}
  */
 function findDOMNode(component) {
-	return (component && (component.base || (component.nodeType === 1 && component))) || null;
+	return (component && ((component._vnode && component._vnode._dom) || (component.nodeType == 1 && component))) || null;
 }
-/**
- * Deprecated way to control batched rendering inside the reconciler, but we
- * already schedule in batches inside our rendering code
- * @template Arg
- * @param {(arg: Arg) => void} callback function that triggers the updated
- * @param {Arg} [arg] Optional argument that can be passed to the callback
- */
-var unstable_batchedUpdates = (callback, arg) => callback(arg);
 /**
  * In React, `flushSync` flushes the entire tree and forces a rerender.
  * @template Arg
@@ -2307,6 +2350,18 @@ var flushSync = (callback, arg) => {
 		options$1.debounceRendering = prevDebounce;
 	}
 };
+/**
+ * In React, `unstable_batchedUpdates` is a legacy feature that was made a no-op
+ * outside of legacy mode in React 18 and a no-op across the board in React 19.
+ * @template Arg
+ * @template Result
+ * @param {(arg: Arg) => Result} callback
+ * @param {Arg} [arg]
+ * @returns {Result}
+ */
+function unstable_batchedUpdates(callback, arg) {
+	return callback(arg);
+}
 var src_default = {
 	useState,
 	useId,
@@ -2317,12 +2372,14 @@ var src_default = {
 	useTransition,
 	useDeferredValue,
 	useSyncExternalStore,
+	useEffectEvent,
 	startTransition,
 	useRef,
 	useImperativeHandle,
 	useMemo,
 	useCallback,
 	useContext,
+	use,
 	useDebugValue,
 	version: version$1,
 	Children,
@@ -2349,12 +2406,11 @@ var src_default = {
 	unstable_batchedUpdates,
 	StrictMode: Fragment,
 	Suspense,
-	SuspenseList,
 	lazy,
 	__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED,
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/values/base64.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/values/base64.js
 var lookup = [];
 var revLookup = [];
 var Arr = Uint8Array;
@@ -2384,8 +2440,8 @@ function toByteArray(b64) {
 	var arr = new Arr(_byteLength(b64, validLen, placeHoldersLen));
 	var curByte = 0;
 	var len = placeHoldersLen > 0 ? validLen - 4 : validLen;
-	var i;
-	for (i = 0; i < len; i += 4) {
+	var i = 0;
+	for (; i < len; i += 4) {
 		tmp =
 			(revLookup[b64.charCodeAt(i)] << 18) |
 			(revLookup[b64.charCodeAt(i + 1)] << 12) |
@@ -2439,7 +2495,7 @@ function fromByteArray(uint8) {
 	return parts.join("");
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/common/index.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/common/index.js
 function parseArgs(args) {
 	if (args === void 0) return {};
 	if (!isSimpleObject(args)) throw new Error(`The arguments to a Convex function must be an object. Received: ${args}`);
@@ -2472,7 +2528,7 @@ function isSimpleObject(value) {
 	return isObject && isSimple;
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/values/value.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/values/value.js
 var LITTLE_ENDIAN = true;
 var MIN_INT64 = BigInt("-9223372036854775808");
 var MAX_INT64 = BigInt("9223372036854775807");
@@ -2605,7 +2661,7 @@ function stringifyValueForError(value) {
 	});
 	if (str.length > MAX_VALUE_FOR_ERROR_LEN) {
 		const rest = "[...truncated]";
-		let truncateAt = MAX_VALUE_FOR_ERROR_LEN - 14;
+		let truncateAt = 16370;
 		const codePoint = str.codePointAt(truncateAt - 1);
 		if (codePoint !== void 0 && codePoint > 65535) truncateAt -= 1;
 		return str.substring(0, truncateAt) + rest;
@@ -2626,12 +2682,13 @@ function convexToJsonInternal(value, originalValue, context, includeTopLevelUnde
 			throw new Error(`BigInt ${value} does not fit into a 64-bit signed integer.`);
 		return { $integer: bigIntToBase64(value) };
 	}
-	if (typeof value === "number")
+	if (typeof value === "number") {
 		if (isSpecial(value)) {
 			const buffer = /* @__PURE__ */ new ArrayBuffer(8);
 			new DataView(buffer).setFloat64(0, value, LITTLE_ENDIAN);
 			return { $float: fromByteArray(new Uint8Array(buffer)) };
 		} else return value;
+	}
 	if (typeof value === "boolean") return value;
 	if (typeof value === "string") return value;
 	if (value instanceof ArrayBuffer) return { $bytes: fromByteArray(new Uint8Array(value)) };
@@ -2677,7 +2734,7 @@ function convexToJson(value) {
 	return convexToJsonInternal(value, value, "", false);
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/values/errors.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/values/errors.js
 var __defProp$11 = Object.defineProperty;
 var __defNormalProp$11 = (obj, key, value) =>
 	key in obj
@@ -2702,10 +2759,10 @@ var ConvexError = class extends ((_b = Error), (_a = IDENTIFYING_FIELD), _b) {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/index.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/index.js
 var version = "1.47.0";
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/logging.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/browser/logging.js
 var __defProp$10 = Object.defineProperty;
 var __defNormalProp$10 = (obj, key, value) =>
 	key in obj
@@ -2816,7 +2873,7 @@ function forwardData(result, error) {
 	return error;
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/udf_path_utils.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/browser/sync/udf_path_utils.js
 function canonicalizeUdfPath(udfPath) {
 	const pieces = udfPath.split(":");
 	let moduleName;
@@ -2850,7 +2907,7 @@ function serializePaginatedPathAndArgs(udfPath, args, options) {
 	});
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/local_state.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/browser/sync/local_state.js
 var __defProp$9 = Object.defineProperty;
 var __defNormalProp$9 = (obj, key, value) =>
 	key in obj
@@ -3109,11 +3166,11 @@ var LocalSyncState = class {
 				type: "Remove",
 				queryId: localQuery.id,
 			};
-			if (this.paused)
+			if (this.paused) {
 				if (this.pendingQuerySetModifications.has(localQuery.id))
 					this.pendingQuerySetModifications.delete(localQuery.id);
 				else this.pendingQuerySetModifications.set(localQuery.id, remove);
-			else this.querySetVersion = newVersion;
+			} else this.querySetVersion = newVersion;
 			return {
 				type: "ModifyQuerySet",
 				baseVersion,
@@ -3124,7 +3181,7 @@ var LocalSyncState = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/request_manager.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/browser/sync/request_manager.js
 var __defProp$8 = Object.defineProperty;
 var __defNormalProp$8 = (obj, key, value) =>
 	key in obj
@@ -3317,10 +3374,10 @@ var RequestManager = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/server/functionName.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/server/functionName.js
 var functionName = Symbol.for("functionName");
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/server/components/paths.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/server/components/paths.js
 var toReferencePath = Symbol.for("toReferencePath");
 function extractReferencePath(reference) {
 	return reference[toReferencePath] ?? null;
@@ -3330,10 +3387,10 @@ function isFunctionHandle(s) {
 }
 function getFunctionAddress(functionReference) {
 	let functionAddress;
-	if (typeof functionReference === "string")
+	if (typeof functionReference === "string") {
 		if (isFunctionHandle(functionReference)) functionAddress = { functionHandle: functionReference };
 		else functionAddress = { name: functionReference };
-	else if (functionReference[functionName]) functionAddress = { name: functionReference[functionName] };
+	} else if (functionReference[functionName]) functionAddress = { name: functionReference[functionName] };
 	else {
 		const referencePath = extractReferencePath(functionReference);
 		if (!referencePath) throw new Error(`${functionReference} is not a functionReference`);
@@ -3342,7 +3399,7 @@ function getFunctionAddress(functionReference) {
 	return functionAddress;
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/server/api.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/server/api.js
 function getFunctionName(functionReference) {
 	const address = getFunctionAddress(functionReference);
 	if (address.name === void 0) {
@@ -3388,7 +3445,7 @@ function createApi(pathParts = []) {
 }
 var anyApi = createApi();
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/optimistic_updates_impl.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/browser/sync/optimistic_updates_impl.js
 var __defProp$7 = Object.defineProperty;
 var __defNormalProp$7 = (obj, key, value) =>
 	key in obj
@@ -3519,7 +3576,7 @@ var OptimisticQueryResults = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/vendor/long.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/vendor/long.js
 var __defProp$6 = Object.defineProperty;
 var __defNormalProp$6 = (obj, key, value) =>
 	key in obj
@@ -3601,7 +3658,7 @@ var TWO_PWR_32_DBL = TWO_PWR_16_DBL * TWO_PWR_16_DBL;
 var TWO_PWR_64_DBL = TWO_PWR_32_DBL * TWO_PWR_32_DBL;
 var MAX_UNSIGNED_VALUE = new Long(-1, -1);
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/remote_query_set.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/browser/sync/remote_query_set.js
 var __defProp$5 = Object.defineProperty;
 var __defNormalProp$5 = (obj, key, value) =>
 	key in obj
@@ -3681,7 +3738,7 @@ var RemoteQuerySet = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/protocol.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/browser/sync/protocol.js
 function u64ToLong(encoded) {
 	const integerBytes = toByteArray(encoded);
 	return Long.fromBytesLE(Array.from(integerBytes));
@@ -3716,7 +3773,6 @@ function parseServerMessage(encoded) {
 					ts: u64ToLong(encoded.endVersion.ts),
 				},
 			};
-		default:
 	}
 }
 function encodeClientMessage(message) {
@@ -3738,11 +3794,10 @@ function encodeClientMessage(message) {
 					...message,
 					maxObservedTimestamp: void 0,
 				};
-		default:
 	}
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/web_socket_manager.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/browser/sync/web_socket_manager.js
 var __defProp$4 = Object.defineProperty;
 var __defNormalProp$4 = (obj, key, value) =>
 	key in obj
@@ -3930,10 +3985,11 @@ var WebSocketManager = class {
 					clientTs: monotonicMillis(),
 				});
 			}
-			if (this.lastCloseReason !== "InitialConnect")
+			if (this.lastCloseReason !== "InitialConnect") {
 				if (this.lastCloseReason)
 					this.logger.log("WebSocket reconnected at", prettyNow(), "after disconnect due to", this.lastCloseReason);
 				else this.logger.log("WebSocket reconnected at", prettyNow());
+			}
 			this.connectionCount += 1;
 			this.lastCloseReason = null;
 			if (this.pendingNetworkRecoveryInfo !== null) {
@@ -4336,7 +4392,7 @@ var WebSocketManager = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/session.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/browser/sync/session.js
 function newSessionId() {
 	return uuidv4();
 }
@@ -4347,7 +4403,7 @@ function uuidv4() {
 	});
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/vendor/jwt-decode/index.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/vendor/jwt-decode/index.js
 var InvalidTokenError = class extends Error {};
 InvalidTokenError.prototype.name = "InvalidTokenError";
 function b64DecodeUnicode(str) {
@@ -4398,7 +4454,7 @@ function jwtDecode(token, options) {
 	}
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/authentication_manager.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/browser/sync/authentication_manager.js
 var __defProp$3 = Object.defineProperty;
 var __defNormalProp$3 = (obj, key, value) =>
 	key in obj
@@ -4410,7 +4466,7 @@ var __defNormalProp$3 = (obj, key, value) =>
 			})
 		: (obj[key] = value);
 var __publicField$3 = (obj, key, value) => __defNormalProp$3(obj, typeof key !== "symbol" ? key + "" : key, value);
-var MAXIMUM_REFRESH_DELAY = 480 * 60 * 60 * 1e3;
+var MAXIMUM_REFRESH_DELAY = 1728e6;
 var MAX_TOKEN_CONFIRMATION_ATTEMPTS = 2;
 var AuthenticationManager = class {
 	constructor(syncState, callbacks, config) {
@@ -4564,7 +4620,7 @@ var AuthenticationManager = class {
 			forceRefreshToken: true,
 		});
 		if (token.isFromOutdatedConfig) return;
-		if (token.value)
+		if (token.value) {
 			if (this.syncState.isNewAuth(token.value)) {
 				this.setAuthState({
 					state: "waitingForServerConfirmationOfFreshToken",
@@ -4578,7 +4634,7 @@ var AuthenticationManager = class {
 					state: "notRefetching",
 					config: this.authState.config,
 				});
-		else {
+		} else {
 			this._logVerbose("refetching token failed");
 			if (this.syncState.hasAuth()) this.clearAuth();
 			this.setAndReportAuthFailed(this.authState.config.onAuthChange);
@@ -4667,12 +4723,6 @@ var AuthenticationManager = class {
 			case "notRefetching":
 			case "noAuth":
 				this.tokenConfirmationAttempts = 0;
-				break;
-			case "waitingForServerConfirmationOfFreshToken":
-			case "waitingForServerConfirmationOfCachedToken":
-			case "initialRefetch":
-				break;
-			default:
 		}
 		if (this.authState.state === "waitingForScheduledRefetch") clearTimeout(this.authState.refetchTokenTimeoutId);
 		this.authState = newAuth;
@@ -4690,7 +4740,7 @@ var AuthenticationManager = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/metrics.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/browser/sync/metrics.js
 var markNames = ["convexClientConstructed", "convexWebSocketOpen", "convexFirstMessageReceived"];
 function mark(name, sessionId) {
 	const detail = { sessionId };
@@ -4718,7 +4768,7 @@ function getMarksReport(sessionId) {
 	return allMarks.map(performanceMarkToJson);
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/client.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/browser/sync/client.js
 var __defProp$2 = Object.defineProperty;
 var __defNormalProp$2 = (obj, key, value) =>
 	key in obj
@@ -4913,7 +4963,6 @@ var BaseConvexClient = class {
 							this.webSocketManager.terminate();
 							throw error;
 						}
-						default:
 					}
 					return { hasSyncedPastLastReconnect: this.hasSyncedPastLastReconnect() };
 				},
@@ -5327,7 +5376,7 @@ var BaseConvexClient = class {
 	tryReportLongDisconnect() {
 		if (!this.debug) return;
 		const timeOfOldestRequest = this.connectionState().timeOfOldestInflightRequest;
-		if (timeOfOldestRequest === null || Date.now() - timeOfOldestRequest.getTime() <= 60 * 1e3) return;
+		if (timeOfOldestRequest === null || Date.now() - timeOfOldestRequest.getTime() <= 6e4) return;
 		const endpoint = `${this.address}/api/debug_event`;
 		fetch(endpoint, {
 			method: "POST",
@@ -5346,7 +5395,7 @@ var BaseConvexClient = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/pagination.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/browser/sync/pagination.js
 function asPaginationResult(value) {
 	if (
 		typeof value !== "object" ||
@@ -5359,7 +5408,7 @@ function asPaginationResult(value) {
 	return value;
 }
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/browser/sync/paginated_query_client.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/browser/sync/paginated_query_client.js
 var __defProp$1 = Object.defineProperty;
 var __defNormalProp$1 = (obj, key, value) =>
 	key in obj
@@ -5668,7 +5717,7 @@ var PaginatedQueryClient = class {
 	}
 };
 //#endregion
-//#region node_modules/.pnpm/convex@1.47.0_react@19.3.0/node_modules/convex/dist/esm/react/client.js
+//#region node_modules/.pnpm/convex@1.47.0_react@19.3.1/node_modules/convex/dist/esm/react/client.js
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) =>
 	key in obj
@@ -6008,7 +6057,7 @@ var ConvexReactClient = class {
 };
 src_default.createContext(void 0);
 //#endregion
-//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_c0bbea75345b3095a51398726c352bdc/node_modules/bonobo-plugin-sdk/frontend.js
+//#region node_modules/.pnpm/bonobo-plugin-sdk@https+++c_2657e010b0f589e042060e0e2bb9c329/node_modules/bonobo-plugin-sdk/frontend.js
 /**
  * The plugin doors with the types the app generated into `convex-api.d.ts`. `anyApi` builds any
  * reference at runtime, so this cast is the one place the SDK trusts that the generated file
@@ -6205,6 +6254,13 @@ async function bonobo_connect() {
 	 * @type {Set<(theme: import("bonobo-plugin-sdk/frontend").BonoboTheme) => void>}
 	 */
 	const themeSubscribers = /* @__PURE__ */ new Set();
+	/**
+	 * The agent tool handlers this page registered, by tool name. The names come from the page's
+	 * `agent.tools` in the manifest.
+	 *
+	 * @type {Map<string, (input: unknown) => unknown>}
+	 */
+	const agentTools = /* @__PURE__ */ new Map();
 	/** @type {Map<string, { resolve: (token: string) => void, reject: (error: Error) => void, timeout: ReturnType<typeof setTimeout> }>} */
 	const pending_refreshes = /* @__PURE__ */ new Map();
 	/** @type {Promise<string> | null} */
@@ -6512,6 +6568,14 @@ async function bonobo_connect() {
 							};
 						},
 					},
+					agent: {
+						registerTool(name, handler) {
+							agentTools.set(name, handler);
+							return () => {
+								if (agentTools.get(name) === handler) agentTools.delete(name);
+							};
+						},
+					},
 				});
 			} else if (
 				initialized &&
@@ -6551,6 +6615,60 @@ async function bonobo_connect() {
 					clearTimeout(pending.timeout);
 					pending.reject(new Error(message.message));
 				}
+			} else if (
+				initialized &&
+				message.nonce === nonce &&
+				message.type === "bonobo:agent-tool-call" &&
+				typeof message.callId === "string" &&
+				typeof message.toolName === "string"
+			) {
+				const callId = message.callId;
+				/** @param {{ ok: true, output: unknown } | { ok: false, error: string }} answer */
+				const reply = (answer) => {
+					try {
+						window.parent.postMessage(
+							{
+								type: "bonobo:agent-tool-result",
+								nonce,
+								callId,
+								...answer,
+							},
+							parentOrigin,
+						);
+					} catch {
+						window.parent.postMessage(
+							{
+								type: "bonobo:agent-tool-result",
+								nonce,
+								callId,
+								ok: false,
+								error: "The tool output could not be sent",
+							},
+							parentOrigin,
+						);
+					}
+				};
+				const handler = agentTools.get(message.toolName);
+				if (!handler)
+					reply({
+						ok: false,
+						error: `This page has no tool named ${message.toolName}`,
+					});
+				else
+					Promise.resolve()
+						.then(() => handler(message.input))
+						.then(
+							(output) =>
+								reply({
+									ok: true,
+									output,
+								}),
+							(error) =>
+								reply({
+									ok: false,
+									error: error instanceof Error ? error.message : String(error),
+								}),
+						);
 			}
 		};
 		window.addEventListener("message", handle_message);
@@ -6560,7 +6678,7 @@ async function bonobo_connect() {
 	});
 }
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/compat/client.mjs
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/compat/client.mjs
 function createRoot(container) {
 	return {
 		render: function (children) {
@@ -6779,7 +6897,7 @@ function create_media_url_manager(client) {
 	};
 }
 //#endregion
-//#region node_modules/.pnpm/preact@10.29.8/node_modules/preact/jsx-runtime/src/index.js
+//#region node_modules/.pnpm/preact@11.0.1/node_modules/preact/jsx-runtime/src/index.js
 var vnodeId = 0;
 Array.isArray;
 /**
@@ -6794,9 +6912,9 @@ Array.isArray;
  */
 /**
  * JSX.Element factory used by Babel's {runtime:"automatic"} JSX transform
- * @param {VNode['type']} type
- * @param {VNode['props']} props
- * @param {VNode['key']} [key]
+ * @param {import('../../src/internal').VNode['type']} type
+ * @param {import('preact').VNode['props']} props
+ * @param {import('preact').VNode['key']} [key]
  * @param {unknown} [isStaticChildren]
  * @param {unknown} [__source]
  * @param {unknown} [__self]
@@ -6806,13 +6924,13 @@ function createVNode(type, props, key, isStaticChildren, __source, __self) {
 	let normalizedProps = props,
 		ref,
 		i;
-	if ("ref" in normalizedProps) {
+	if ("ref" in normalizedProps && typeof type != "function") {
 		normalizedProps = {};
 		for (i in props)
 			if (i == "ref") ref = props[i];
 			else normalizedProps[i] = props[i];
 	}
-	/** @type {VNode & { __source: any; __self: any }} */
+	/** @type {import('../../src/internal').VNode & { __source?: any; __self?: any }} */
 	const vnode = {
 		type,
 		props: normalizedProps,
@@ -6827,11 +6945,10 @@ function createVNode(type, props, key, isStaticChildren, __source, __self) {
 		_original: --vnodeId,
 		_index: -1,
 		_flags: 0,
-		__source,
-		__self,
 	};
-	if (typeof type === "function" && (ref = type.defaultProps)) {
-		for (i in ref) if (normalizedProps[i] === void 0) normalizedProps[i] = ref[i];
+	if (__source || __self) {
+		vnode.__source = __source;
+		vnode.__self = __self;
 	}
 	if (options$1.vnode) options$1.vnode(vnode);
 	return vnode;

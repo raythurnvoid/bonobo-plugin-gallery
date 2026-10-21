@@ -13,6 +13,7 @@ function media_item(nodeId: string): FilesListItem {
 		updatedAt: 0,
 		status: "ready",
 		size: 1024,
+		locked: false,
 	};
 }
 
