@@ -100,6 +100,35 @@ test("grid tiles from one page coalesce into a single batched download-urls call
 	});
 });
 
+test("a locked row shows a locked tile and never asks for its media URL", async () => {
+	const download_urls_bodies: string[][] = [];
+	const fetchJson = vi.fn(async (path: string, body: { fileNodeIds?: string[] }) => {
+		if (path === "/api/v1/files/download-urls") {
+			const node_ids = body.fileNodeIds ?? [];
+			download_urls_bodies.push(node_ids);
+			return {
+				status: 200,
+				body: {
+					items: node_ids.map((nodeId) => ({ fileNodeId: nodeId, url: `u-${nodeId}`, expiresAt: Date.now() + 600_000 })),
+					errors: [],
+					truncated: false,
+				},
+			};
+		}
+		return {
+			status: 200,
+			body: { items: [media_item("a1"), { ...media_item("l1"), locked: true }], cursor: "", isDone: true },
+		};
+	});
+	const { container } = render(<App client={make_client(fetchJson)} />);
+
+	await waitFor(() => expect(download_urls_bodies).toEqual([["a1"]]));
+	const locked_tile = container.querySelector(".tile[data-locked]");
+	expect(locked_tile?.textContent).toContain("l1.png");
+	expect(locked_tile?.textContent).toContain("Locked");
+	expect(screen.queryByRole("link", { name: /l1\.png/ })).toBeNull();
+});
+
 test("a rejected initial thumbnail request shows the failed placeholder with a working Retry", async () => {
 	const media = {
 		get_url: vi.fn().mockRejectedValueOnce(Object.assign(new Error("service unavailable"), { status: 500 })),

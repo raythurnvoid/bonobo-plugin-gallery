@@ -7012,14 +7012,16 @@ function App(props) {
 				? /* @__PURE__ */ createVNode("div", {
 						className: "gallery-grid",
 						children: items.map((item) =>
-							/* @__PURE__ */ createVNode(
-								GalleryTile,
-								{
-									item,
-									media,
-								},
-								item.nodeId,
-							),
+							item.locked
+								? /* @__PURE__ */ createVNode(GalleryLockedTile, { item }, item.nodeId)
+								: /* @__PURE__ */ createVNode(
+										GalleryTile,
+										{
+											item,
+											media,
+										},
+										item.nodeId,
+									),
 						),
 					})
 				: null,
@@ -7185,6 +7187,53 @@ function GalleryTile(props) {
 						children: "Retry",
 					})
 				: null,
+		],
+	});
+}
+/**
+ * A file the caller cannot open: name and lock only. It is not a link, because opening it
+ * answers "Permission denied".
+ */
+function GalleryLockedTile(props) {
+	return /* @__PURE__ */ createVNode("div", {
+		className: "tile is-locked",
+		"data-locked": "",
+		title: "You do not have permission to open this file",
+		children: [
+			/* @__PURE__ */ createVNode("span", {
+				className: "tile-lock",
+				children: [
+					/* @__PURE__ */ createVNode("svg", {
+						viewBox: "0 0 24 24",
+						width: "24",
+						height: "24",
+						"aria-hidden": "true",
+						children: [
+							/* @__PURE__ */ createVNode("rect", {
+								x: "5",
+								y: "11",
+								width: "14",
+								height: "10",
+								rx: "2",
+								fill: "none",
+								stroke: "currentColor",
+								strokeWidth: "2",
+							}),
+							/* @__PURE__ */ createVNode("path", {
+								d: "M8 11V7a4 4 0 0 1 8 0v4",
+								fill: "none",
+								stroke: "currentColor",
+								strokeWidth: "2",
+							}),
+						],
+					}),
+					"Locked",
+				],
+			}),
+			/* @__PURE__ */ createVNode("span", {
+				className: "tile-name",
+				children: props.item.name,
+			}),
 		],
 	});
 }

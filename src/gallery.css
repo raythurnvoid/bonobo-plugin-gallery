@@ -184,6 +184,28 @@ body {
 	opacity: 1;
 }
 
+.tile.is-locked:hover {
+	transform: none;
+	box-shadow: none;
+}
+
+.tile-lock {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	color: #9a9aa3;
+	font-size: 13px;
+}
+
+/* A locked tile has no link to focus, so keep its name visible. */
+.tile.is-locked .tile-name {
+	opacity: 1;
+}
+
 .tile-retry {
 	position: absolute;
 	top: 50%;

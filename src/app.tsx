@@ -64,9 +64,15 @@ export function App(props: { client: BonoboClient }) {
 			</header>
 			{items.length > 0 ? (
 				<div className="gallery-grid">
-					{items.map((item) => (
-						<GalleryTile key={item.nodeId} item={item} media={media} />
-					))}
+					{items.map((item) =>
+						// The list shows files the caller cannot open as locked rows. Opening one answers
+						// 403, so never ask for its media URL.
+						item.locked ? (
+							<GalleryLockedTile key={item.nodeId} item={item} />
+						) : (
+							<GalleryTile key={item.nodeId} item={item} media={media} />
+						),
+					)}
 				</div>
 			) : null}
 			{loading ? (
@@ -210,6 +216,25 @@ export function GalleryTile(props: { item: FilesListItem; media: MediaUrlManager
 					Retry
 				</button>
 			) : null}
+		</div>
+	);
+}
+
+/**
+ * A file the caller cannot open: name and lock only. It is not a link, because opening it
+ * answers "Permission denied".
+ */
+function GalleryLockedTile(props: { item: FilesListItem }) {
+	return (
+		<div className="tile is-locked" data-locked="" title="You do not have permission to open this file">
+			<span className="tile-lock">
+				<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+					<rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
+					<path d="M8 11V7a4 4 0 0 1 8 0v4" fill="none" stroke="currentColor" strokeWidth="2" />
+				</svg>
+				Locked
+			</span>
+			<span className="tile-name">{props.item.name}</span>
 		</div>
 	);
 }

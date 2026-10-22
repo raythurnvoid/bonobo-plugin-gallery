@@ -2,7 +2,7 @@
 	"schemaVersion": 1,
 	"name": "gallery",
 	"displayName": "Gallery",
-	"version": "0.1.25",
+	"version": "0.1.26",
 	"description": "Google-Photos-style gallery for workspace images and videos.",
 	"compatibility": {
 		"bonoboPluginRuntime": "1"
@@ -30,14 +30,14 @@
 		},
 		{
 			"path": "dist/frontend/assets/index.js",
-			"sha256": "sha256:7fe52270b2a59fbbe69ae295b005f97314ac1aa18852b9e2e8bfe4f4b185e256",
-			"bytes": 250015,
+			"sha256": "sha256:fb8531c15ccd5818e4e7b404c2e1d14b8d67a3b822e4b044d1ab04b0f035085b",
+			"bytes": 251276,
 			"contentType": "application/javascript"
 		},
 		{
 			"path": "dist/frontend/assets/index.css",
-			"sha256": "sha256:8fb6b513fc8033a2c105feffb5f28ae0447c5a3fd349ebe20feb20ebfebc7c65",
-			"bytes": 5282,
+			"sha256": "sha256:aec62f4294f12f73ad5142830fb1f824764df8816eb1b27397cdf7fbb728561a",
+			"bytes": 5642,
 			"contentType": "text/css"
 		}
 	]
